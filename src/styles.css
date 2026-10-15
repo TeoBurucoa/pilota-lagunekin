@@ -26,7 +26,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -53,6 +54,7 @@ button {
 .brand {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 12px;
   color: var(--ink);
   font-weight: 700;
@@ -304,6 +306,11 @@ h1 em {
   gap: 10px;
   min-height: 38px;
   font-weight: 600;
+}
+
+.scheduled-player > span:nth-child(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .remove-from-session {
@@ -578,6 +585,7 @@ footer {
 
 .add-player button {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   padding: 0 14px;
@@ -677,58 +685,135 @@ footer {
 
 @media (max-width: 560px) {
   .site-header {
-    height: 66px;
-    padding: 0 18px;
+    height: auto;
+    min-height: 60px;
+    padding: max(10px, env(safe-area-inset-top)) 16px 10px;
   }
 
-  .icon-button span {
-    display: none;
+  .brand {
+    gap: 8px;
+    font-size: 15px;
+  }
+
+  .brand > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .icon-button {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 8px 12px;
   }
 
   .hero {
     min-height: 0;
-    padding: 42px 20px 48px;
+    gap: 20px;
+    padding: 28px 16px 32px;
   }
 
   h1 {
-    font-size: 53px;
+    margin-bottom: 16px;
+    font-size: 40px;
+    line-height: 1.05;
   }
 
   .next-date {
     flex-wrap: wrap;
-    font-size: 14px;
+    gap: 6px 10px;
+    font-size: 15px;
+  }
+
+  .next-date span {
+    display: none;
+  }
+
+  .court-card {
+    min-height: 132px;
+    box-shadow: 10px 10px 0 #dce3d4;
+  }
+
+  .court-card span {
+    right: 20px;
+    bottom: 18px;
+    font-size: 24px;
   }
 
   .content-section {
-    padding: 45px 18px;
+    padding: 32px 16px;
   }
 
   .section-heading {
-    align-items: start;
+    align-items: stretch;
     flex-direction: column;
   }
 
   .section-heading h2 {
-    font-size: 34px;
+    font-size: 30px;
+  }
+
+  .secondary-button {
+    justify-content: center;
+    min-height: 44px;
   }
 
   .schedule-grid {
     grid-template-columns: 1fr;
   }
 
+  .session-card {
+    padding: 18px 16px;
+  }
+
+  .session-card h3 {
+    font-size: 22px;
+  }
+
+  .remove-from-session,
+  .close-button,
+  .roster-player > button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .availability-chip button {
+    width: 28px;
+    height: 28px;
+  }
+
+  .availability-form {
+    flex-direction: column;
+  }
+
+  .availability-form select,
+  .availability-form > button {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
   .demo-banner,
   .error-message {
-    margin-right: 18px;
-    margin-left: 18px;
+    margin-right: 16px;
+    margin-left: 16px;
   }
 
   footer {
     flex-direction: column;
     gap: 8px;
-    padding: 22px 18px 32px;
+    padding: 22px 16px max(28px, env(safe-area-inset-bottom));
   }
 
   .modal {
-    padding: 28px 20px;
+    padding: 20px 16px max(24px, env(safe-area-inset-bottom));
+  }
+
+  .add-player {
+    flex-direction: column;
+  }
+
+  .add-player button {
+    justify-content: center;
+    min-height: 44px;
   }
 }
