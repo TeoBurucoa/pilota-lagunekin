@@ -12,6 +12,12 @@ export const DAYS = [
   'Samedi',
 ]
 
+export const FREQUENCIES = [
+  { value: 1, label: 'Toutes les semaines' },
+  { value: 2, label: 'Toutes les deux semaines' },
+  { value: 4, label: 'Tous les mois (4 semaines)' },
+]
+
 const makeSlug = (value) =>
   value
     .normalize('NFD')
@@ -27,6 +33,7 @@ export default function Welcome() {
     name: '',
     meeting_day: 4,
     meeting_time: '18:00',
+    frequency_weeks: 1,
     hero_message: 'Osteguna, Pilota eguna!',
   })
   const [error, setError] = useState(configError)
@@ -48,8 +55,10 @@ export default function Welcome() {
       access_token: token,
       slug,
       name: form.name.trim(),
+      created_at: new Date().toISOString(),
       meeting_day: Number(form.meeting_day),
       meeting_time: `${form.meeting_time}:00`,
+      frequency_weeks: Number(form.frequency_weeks),
       hero_message: form.hero_message.trim(),
     }
 
@@ -86,8 +95,7 @@ export default function Welcome() {
             Créez votre groupe. <em>Jouez ensemble.</em>
           </h1>
           <p className="welcome-intro">
-            Un planning privé et personnalisable pour organiser vos parties
-            régulières, sans mélanger votre groupe avec les autres.
+            Le site pour les "Grande Jugadores". Gestion des créneaux réguliers entre amis : rotation automatique mas personnalisable.
           </p>
           <div className="welcome-points">
             <span><Users size={18} /> Votre espace privé</span>
@@ -134,6 +142,20 @@ export default function Welcome() {
               />
             </label>
           </div>
+
+          <label>
+            Fréquence
+            <select
+              value={form.frequency_weeks}
+              onChange={update('frequency_weeks')}
+            >
+              {FREQUENCIES.map((frequency) => (
+                <option value={frequency.value} key={frequency.value}>
+                  {frequency.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <label>
             Message principal

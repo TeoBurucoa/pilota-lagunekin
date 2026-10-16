@@ -7,6 +7,8 @@ create table if not exists public.groups (
   name text not null check (char_length(trim(name)) between 1 and 60),
   meeting_day smallint not null default 4 check (meeting_day between 0 and 6),
   meeting_time time not null default '18:00',
+  frequency_weeks smallint not null default 1
+    check (frequency_weeks in (1, 2, 4)),
   hero_message text not null default 'Osteguna, Pilota eguna!'
     check (char_length(trim(hero_message)) between 1 and 100),
   created_at timestamptz not null default now()
@@ -16,6 +18,8 @@ alter table public.players add column if not exists group_id uuid
   references public.groups(id) on delete cascade;
 alter table public.sessions add column if not exists group_id uuid
   references public.groups(id) on delete cascade;
+alter table public.session_players
+  add column if not exists locked boolean not null default false;
 
 -- Conserve les éventuelles données de la première version dans un groupe.
 do $$
@@ -125,6 +129,8 @@ drop policy if exists "Public can add session players"
   on public.session_players;
 drop policy if exists "Public can remove session players"
   on public.session_players;
+drop policy if exists "Group can lock session players"
+  on public.session_players;
 create policy "Group can read session players"
   on public.session_players for select to anon, authenticated
   using (
@@ -148,6 +154,20 @@ create policy "Group can add session players"
 create policy "Group can remove session players"
   on public.session_players for delete to anon, authenticated
   using (
+    exists (
+      select 1 from sessions
+      where id = session_id and group_id = request_group_id()
+    )
+  );
+create policy "Group can lock session players"
+  on public.session_players for update to anon, authenticated
+  using (
+    exists (
+      select 1 from sessions
+      where id = session_id and group_id = request_group_id()
+    )
+  )
+  with check (
     exists (
       select 1 from sessions
       where id = session_id and group_id = request_group_id()
@@ -205,6 +225,7 @@ declare
   v_first_date date;
   v_date date;
   v_session_id uuid;
+  v_open_slots integer;
   v_week integer;
 begin
   v_group_id := request_group_id();
@@ -242,6 +263,13 @@ begin
     where session_id in (
       select id from sessions
       where group_id = v_group_id and played_on >= v_first_date
+    )
+    and (
+      locked = false
+      or player_id not in (
+        select id from players
+        where active and group_id = v_group_id
+      )
     );
   end if;
 
@@ -254,9 +282,11 @@ begin
       set played_on = excluded.played_on
     returning id into v_session_id;
 
-    if not exists (
-      select 1 from session_players where session_id = v_session_id
-    ) then
+    select 4 - count(*) into v_open_slots
+    from session_players
+    where session_id = v_session_id;
+
+    if v_open_slots > 0 then
       insert into session_players (session_id, player_id)
       select v_session_id, ranked.id
       from (
@@ -269,14 +299,20 @@ begin
         left join session_players sp on sp.player_id = p.id
         left join sessions s
           on s.id = sp.session_id and s.group_id = v_group_id
-        where p.active and p.group_id = v_group_id
+        where p.active
+          and p.group_id = v_group_id
+          and not exists (
+            select 1 from session_players existing
+            where existing.session_id = v_session_id
+              and existing.player_id = p.id
+          )
         group by p.id, p.created_at
         order by
           game_count asc,
           last_game asc nulls first,
           p.created_at asc,
           p.id asc
-        limit 4
+        limit v_open_slots
       ) ranked;
     end if;
   end loop;

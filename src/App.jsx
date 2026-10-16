@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
   Clock3,
+  Lock,
+  LockOpen,
   Plus,
   RotateCw,
   Settings,
@@ -12,7 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { configError, createGroupClient, isConfigured } from './supabase'
-import Welcome, { DAYS } from './Welcome'
+import Welcome, { DAYS, FREQUENCIES } from './Welcome'
 import Admin from './Admin'
 
 const dateKey = (date) => {
@@ -22,20 +24,28 @@ const dateKey = (date) => {
   return `${year}-${month}-${day}`
 }
 
-const nextMeetingDate = (meetingDay = 4, meetingTime = '18:00:00') => {
-  const date = new Date()
+const nextMeetingDate = (
+  meetingDay = 4,
+  meetingTime = '18:00:00',
+  frequencyWeeks = 1,
+  createdAt = new Date().toISOString(),
+) => {
+  const date = new Date(createdAt)
   date.setHours(12, 0, 0, 0)
-  let delta = (meetingDay - date.getDay() + 7) % 7
+  date.setDate(date.getDate() + ((meetingDay - date.getDay() + 7) % 7))
+  const intervalDays = frequencyWeeks * 7
+  const today = new Date()
+  today.setHours(12, 0, 0, 0)
+  while (date < today) date.setDate(date.getDate() + intervalDays)
   const [hour, minute] = meetingTime.split(':').map(Number)
   const now = new Date()
   if (
-    delta === 0 &&
+    dateKey(date) === dateKey(now) &&
     (now.getHours() > hour ||
       (now.getHours() === hour && now.getMinutes() >= minute))
   ) {
-    delta = 7
+    date.setDate(date.getDate() + intervalDays)
   }
-  date.setDate(date.getDate() + delta)
   return date
 }
 
@@ -45,51 +55,73 @@ function makeDemoSessions(
   previousSessions = [],
   meetingDay = 4,
   meetingTime = '18:00:00',
+  frequencyWeeks = 1,
+  createdAt,
 ) {
   const counts = new Map(players.map((player) => [player.id, 0]))
   const lastPlayed = new Map(players.map((player) => [player.id, -1]))
-  const firstDate = nextMeetingDate(meetingDay, meetingTime)
+  const firstDate = nextMeetingDate(
+    meetingDay,
+    meetingTime,
+    frequencyWeeks,
+    createdAt,
+  )
 
-  const generated = Array.from({ length: weeks }, (_, week) => {
+  const activeIds = new Set(players.map((player) => player.id))
+
+  return Array.from({ length: weeks }, (_, week) => {
+    const date = new Date(firstDate)
+    date.setDate(firstDate.getDate() + week * 7 * frequencyWeeks)
+    const playedOn = dateKey(date)
+    const previous = previousSessions.find((item) => item.played_on === playedOn)
+    const lockedEntries = (previous?.session_players || []).filter(
+      (entry) => entry.locked && activeIds.has(entry.player_id),
+    )
+    const lockedIds = new Set(lockedEntries.map((entry) => entry.player_id))
     const selected = [...players]
+      .filter((player) => !lockedIds.has(player.id))
       .sort(
         (a, b) =>
           counts.get(a.id) - counts.get(b.id) ||
           lastPlayed.get(a.id) - lastPlayed.get(b.id) ||
           a.created_at.localeCompare(b.created_at),
       )
-      .slice(0, 4)
+      .slice(0, Math.max(0, 4 - lockedEntries.length))
+    const roster = [
+      ...lockedEntries.map((entry) => ({
+        player_id: entry.player_id,
+        locked: true,
+      })),
+      ...selected.map((player) => ({ player_id: player.id, locked: false })),
+    ]
 
-    selected.forEach((player) => {
-      counts.set(player.id, counts.get(player.id) + 1)
-      lastPlayed.set(player.id, week)
+    roster.forEach((entry) => {
+      counts.set(entry.player_id, (counts.get(entry.player_id) || 0) + 1)
+      lastPlayed.set(entry.player_id, week)
     })
 
-    const date = new Date(firstDate)
-    date.setDate(firstDate.getDate() + week * 7)
     return {
-      id: `session-${week}`,
-      played_on: dateKey(date),
-      session_players: selected.map((player) => ({ player_id: player.id })),
-      session_availability: [],
-    }
-  })
-
-  return generated.map((session) => {
-    const previous = previousSessions.find(
-      (item) => item.played_on === session.played_on,
-    )
-    const selectedIds = new Set(
-      session.session_players.map((entry) => entry.player_id),
-    )
-    return {
-      ...session,
+      id: previous?.id || `session-${week}`,
+      played_on: playedOn,
+      session_players: roster,
       session_availability: (previous?.session_availability || []).filter(
         (entry) =>
-          counts.has(entry.player_id) && !selectedIds.has(entry.player_id),
+          activeIds.has(entry.player_id) &&
+          !roster.some((item) => item.player_id === entry.player_id),
       ),
     }
   })
+}
+
+function HeroMessage({ message = '' }) {
+  const splitAt = message.indexOf(',')
+  if (splitAt === -1) return <h1 className="custom-message">{message}</h1>
+
+  return (
+    <h1 className="custom-message">
+      {message.slice(0, splitAt + 1)} <em>{message.slice(splitAt + 1).trim()}</em>
+    </h1>
+  )
 }
 
 const formatDate = (value) =>
@@ -160,7 +192,7 @@ function GroupPage({ groupId, groupToken }) {
       supabase
         .from('sessions')
         .select(
-          'id, played_on, session_players(player_id), session_availability(player_id)',
+          'id, played_on, session_players(player_id, locked), session_availability(player_id)',
         )
         .eq('group_id', groupId)
         .order('played_on'),
@@ -211,6 +243,8 @@ function GroupPage({ groupId, groupToken }) {
           sessions,
           group.meeting_day,
           group.meeting_time,
+          group.frequency_weeks || 1,
+          group.created_at,
         ),
       )
       setNewName('')
@@ -235,6 +269,7 @@ function GroupPage({ groupId, groupToken }) {
       name: group.name.trim(),
       meeting_day: Number(group.meeting_day),
       meeting_time: group.meeting_time,
+      frequency_weeks: Number(group.frequency_weeks || 1),
       hero_message: group.hero_message.trim(),
     }
 
@@ -272,6 +307,8 @@ function GroupPage({ groupId, groupToken }) {
           sessions,
           group.meeting_day,
           group.meeting_time,
+          group.frequency_weeks || 1,
+          group.created_at,
         ),
       )
       return
@@ -298,6 +335,8 @@ function GroupPage({ groupId, groupToken }) {
           sessions,
           group.meeting_day,
           group.meeting_time,
+          group.frequency_weeks || 1,
+          group.created_at,
         ),
       )
       return
@@ -363,6 +402,29 @@ function GroupPage({ groupId, groupToken }) {
       .eq('session_id', sessionId)
       .eq('player_id', playerId)
     if (deleteError) setError(deleteError.message)
+    else await loadData()
+  }
+
+  async function togglePlayerLock(sessionId, player) {
+    const locked = !player.locked
+    setError('')
+
+    if (!isConfigured) {
+      updateDemoSession(sessionId, (item) => ({
+        ...item,
+        session_players: item.session_players.map((entry) =>
+          entry.player_id === player.id ? { ...entry, locked } : entry,
+        ),
+      }))
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('session_players')
+      .update({ locked })
+      .eq('session_id', sessionId)
+      .eq('player_id', player.id)
+    if (updateError) setError(updateError.message)
     else await loadData()
   }
 
@@ -459,9 +521,12 @@ function GroupPage({ groupId, groupToken }) {
       </header>
 
       <section className="hero">
+        <div className="pelota-flight" aria-hidden="true">
+          <span className="pelota-ball" />
+        </div>
         <div className="hero-copy">
           <p className="eyebrow">Prochaine partie</p>
-          <h1 className="custom-message">{group?.hero_message}</h1>
+          <HeroMessage message={group?.hero_message} />
           <div className="next-date">
             <CalendarDays size={20} />
             {nextSession ? formatDate(nextSession.played_on) : 'Planning à créer'}
@@ -519,7 +584,10 @@ function GroupPage({ groupId, groupToken }) {
           <div className="schedule-grid">
             {upcomingSessions.map((session, index) => {
               const selected = session.session_players
-                .map(({ player_id }) => playerMap.get(player_id))
+                .map(({ player_id, locked }) => {
+                  const player = playerMap.get(player_id)
+                  return player ? { ...player, locked: Boolean(locked) } : null
+                })
                 .filter(Boolean)
               const selectedIds = new Set(selected.map((player) => player.id))
               const available = (session.session_availability || [])
@@ -550,7 +618,25 @@ function GroupPage({ groupId, groupToken }) {
                           {player.name.slice(0, 1).toUpperCase()}
                         </span>
                         <span>{player.name}</span>
-                        <button
+                        <div className="player-actions">
+                          <button
+                            className={`lock-player ${player.locked ? 'locked' : ''}`}
+                            onClick={() => togglePlayerLock(session.id, player)}
+                            title={
+                              player.locked
+                                ? `Déverrouiller ${player.name}`
+                                : `Verrouiller ${player.name} sur ce créneau`
+                            }
+                            aria-label={
+                              player.locked
+                                ? `Déverrouiller ${player.name}`
+                                : `Verrouiller ${player.name}`
+                            }
+                            aria-pressed={player.locked}
+                          >
+                            {player.locked ? <Lock size={15} /> : <LockOpen size={15} />}
+                          </button>
+                          <button
                           className="remove-from-session"
                           onClick={() =>
                             removeSelectedPlayer(session.id, player)
@@ -560,6 +646,7 @@ function GroupPage({ groupId, groupToken }) {
                         >
                           <X size={15} />
                         </button>
+                        </div>
                       </div>
                     ))}
                     {selected.length < 4 && (
@@ -723,6 +810,24 @@ function GroupPage({ groupId, groupToken }) {
                 </label>
               </div>
               <label>
+                Fréquence
+                <select
+                  value={group.frequency_weeks || 1}
+                  onChange={(event) =>
+                    setGroup((current) => ({
+                      ...current,
+                      frequency_weeks: Number(event.target.value),
+                    }))
+                  }
+                >
+                  {FREQUENCIES.map((frequency) => (
+                    <option value={frequency.value} key={frequency.value}>
+                      {frequency.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
                 Message principal
                 <textarea
                   required
@@ -779,7 +884,8 @@ function GroupPage({ groupId, groupToken }) {
               <Users size={19} />
               <p>
                 Le planning choisit en priorité ceux qui ont le moins joué, puis
-                ceux dont la dernière partie est la plus ancienne.
+                ceux dont la dernière partie est la plus ancienne. Un joueur
+                verrouillé reste sur son créneau lors des prochains recalculs.
               </p>
             </div>
           </aside>

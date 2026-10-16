@@ -19,7 +19,8 @@ create table if not exists public.sessions (
 
 create table if not exists public.session_players (
   session_id uuid not null references public.sessions(id) on delete cascade,
-  player_id uuid not null references public.players(id) on delete restrict,
+  player_id uuid not null references public.players(id) on delete cascade,
+  locked boolean not null default false,
   primary key (session_id, player_id)
 );
 

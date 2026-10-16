@@ -20,20 +20,24 @@ fictifs. Les modifications ne sont alors pas partagées.
    - `supabase/schema.sql`
    - `supabase/multi-groups.sql`
    - `supabase/admin-space.sql`
+   - `supabase/add-player-locks.sql`
+   - `supabase/add-group-features.sql`
 3. Copier `.env.example` vers `.env`.
 4. Dans les réglages API du projet Supabase, copier l'URL et la clé anonyme
    dans `.env`.
 5. Relancer le serveur.
 
 La page d'accueil permet de créer plusieurs groupes indépendants. Chaque groupe
-choisit son nom, son jour, son heure et son message principal. Un lien privé
-contenant une clé secrète est ensuite créé : il faut conserver et partager ce
-lien complet avec les membres concernés.
+choisit son nom, son jour, son heure, sa fréquence et son message principal.
+Les fréquences proposées sont hebdomadaire, toutes les deux semaines et toutes
+les quatre semaines. Un lien privé contenant une clé secrète est ensuite créé :
+il faut conserver et partager ce lien complet avec les membres concernés.
 
 Le bouton « Recalculer le planning » prépare les douze prochaines semaines. À
 chaque semaine, l'algorithme choisit les quatre joueurs ayant le moins de
 parties, puis ceux qui n'ont pas joué depuis le plus longtemps. Les anciennes
-parties sont conservées ; seules les dates à venir sont recalculées.
+parties sont conservées ; seules les dates à venir sont recalculées. Un cadenas
+permet de fixer un joueur sur un créneau : il y reste lors des recalculs.
 
 Pour chaque jeudi, un joueur non retenu peut se déclarer « disponible en
 renfort ». Si l'un des quatre joueurs est retiré, une place libre apparaît et
@@ -43,8 +47,10 @@ un remplaçant disponible peut être ajouté en un clic.
 
 Si l'ancienne version est déjà installée, exécuter d'abord
 `supabase/add-availability.sql` si nécessaire, puis
-`supabase/multi-groups.sql`. Les anciennes données sont conservées dans un
-premier groupe ; la dernière requête SQL affiche son chemin privé.
+`supabase/multi-groups.sql`, puis `supabase/admin-space.sql`,
+`supabase/add-player-locks.sql` et `supabase/add-group-features.sql`. Les
+anciennes données sont conservées dans un premier groupe ; la dernière requête
+de `multi-groups.sql` affiche son chemin privé.
 
 ## Mise en ligne
 

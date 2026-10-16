@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ExternalLink, LogOut, ShieldCheck } from 'lucide-react'
+import { ExternalLink, LogOut, ShieldCheck, Trash2 } from 'lucide-react'
 import { createAdminClient, isConfigured } from './supabase'
-import { DAYS } from './Welcome'
+import { DAYS, FREQUENCIES } from './Welcome'
 
 const formatCreatedAt = (value) =>
   new Intl.DateTimeFormat('fr-FR', {
@@ -16,6 +16,7 @@ export default function Admin({ adminToken }) {
   const [loading, setLoading] = useState(true)
   const [authorized, setAuthorized] = useState(false)
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState('')
 
   useEffect(() => {
     async function loadGroups() {
@@ -46,6 +47,24 @@ export default function Admin({ adminToken }) {
 
     loadGroups()
   }, [client])
+
+  async function deleteGroup(group) {
+    const confirmed = window.confirm(
+      `Supprimer définitivement le groupe « ${group.name} », ses joueurs et tout son planning ?`,
+    )
+    if (!confirmed) return
+
+    setDeletingId(group.id)
+    setError('')
+    const { error: deleteError } = await client
+      .from('groups')
+      .delete()
+      .eq('id', group.id)
+
+    if (deleteError) setError(deleteError.message)
+    else setGroups((current) => current.filter((item) => item.id !== group.id))
+    setDeletingId('')
+  }
 
   if (loading) {
     return <main className="link-state"><h1>Ouverture de l’administration…</h1></main>
@@ -104,13 +123,30 @@ export default function Admin({ adminToken }) {
                 <div className="admin-group-meta">
                   <span>{DAYS[group.meeting_day]}</span>
                   <span>{group.meeting_time.slice(0, 5).replace(':', 'h')}</span>
+                  <span>
+                    {FREQUENCIES.find(
+                      (frequency) =>
+                        frequency.value === (group.frequency_weeks || 1),
+                    )?.label}
+                  </span>
                 </div>
-                <a
-                  className="open-group-button"
-                  href={`/?group=${group.id}&key=${group.access_token}`}
-                >
-                  Ouvrir le groupe <ExternalLink size={16} />
-                </a>
+                <div className="admin-card-actions">
+                  <a
+                    className="open-group-button"
+                    href={`/?group=${group.id}&key=${group.access_token}`}
+                  >
+                    Ouvrir <ExternalLink size={16} />
+                  </a>
+                  <button
+                    className="delete-group-button"
+                    onClick={() => deleteGroup(group)}
+                    disabled={deletingId === group.id}
+                    title={`Supprimer ${group.name}`}
+                    aria-label={`Supprimer ${group.name}`}
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </div>
               </article>
             ))}
           </div>
