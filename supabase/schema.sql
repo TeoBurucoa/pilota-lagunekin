@@ -179,21 +179,3 @@ $$;
 
 grant execute on function public.generate_pelote_sessions(integer, boolean)
   to anon, authenticated;
-
-insert into public.players (name)
-select name
-from unnest(
-  array[
-    'Antton',
-    'Baptiste',
-    'Éric',
-    'Iban',
-    'Jean',
-    'Mikel',
-    'Nicolas',
-    'Peio',
-    'Thomas',
-    'Xabi'
-  ]
-) as seed(name)
-where not exists (select 1 from public.players);

@@ -5,30 +5,15 @@ import {
   Plus,
   RotateCw,
   Settings,
+  Share2,
   Trash2,
   UserPlus,
   Users,
   X,
 } from 'lucide-react'
-import { isConfigured, supabase } from './supabase'
-
-const demoPlayers = [
-  'Antton',
-  'Baptiste',
-  'Éric',
-  'Iban',
-  'Jean',
-  'Mikel',
-  'Nicolas',
-  'Peio',
-  'Thomas',
-  'Xabi',
-].map((name, index) => ({
-  id: `demo-${index}`,
-  name,
-  active: true,
-  created_at: new Date(2026, 0, index + 1).toISOString(),
-}))
+import { configError, createGroupClient, isConfigured } from './supabase'
+import Welcome, { DAYS } from './Welcome'
+import Admin from './Admin'
 
 const dateKey = (date) => {
   const year = date.getFullYear()
@@ -37,19 +22,33 @@ const dateKey = (date) => {
   return `${year}-${month}-${day}`
 }
 
-const nextThursday = () => {
+const nextMeetingDate = (meetingDay = 4, meetingTime = '18:00:00') => {
   const date = new Date()
   date.setHours(12, 0, 0, 0)
-  let delta = (4 - date.getDay() + 7) % 7
-  if (delta === 0 && new Date().getHours() >= 18) delta = 7
+  let delta = (meetingDay - date.getDay() + 7) % 7
+  const [hour, minute] = meetingTime.split(':').map(Number)
+  const now = new Date()
+  if (
+    delta === 0 &&
+    (now.getHours() > hour ||
+      (now.getHours() === hour && now.getMinutes() >= minute))
+  ) {
+    delta = 7
+  }
   date.setDate(date.getDate() + delta)
   return date
 }
 
-function makeDemoSessions(players, weeks = 8, previousSessions = []) {
+function makeDemoSessions(
+  players,
+  weeks = 8,
+  previousSessions = [],
+  meetingDay = 4,
+  meetingTime = '18:00:00',
+) {
   const counts = new Map(players.map((player) => [player.id, 0]))
   const lastPlayed = new Map(players.map((player) => [player.id, -1]))
-  const firstDate = nextThursday()
+  const firstDate = nextMeetingDate(meetingDay, meetingTime)
 
   const generated = Array.from({ length: weeks }, (_, week) => {
     const selected = [...players]
@@ -100,17 +99,25 @@ const formatDate = (value) =>
     month: 'long',
   }).format(new Date(`${value}T12:00:00`))
 
-function App() {
-  const [players, setPlayers] = useState(isConfigured ? [] : demoPlayers)
-  const [sessions, setSessions] = useState(
-    isConfigured ? [] : makeDemoSessions(demoPlayers),
+function GroupPage({ groupId, groupToken }) {
+  const supabase = useMemo(
+    () => createGroupClient(groupToken),
+    [groupToken],
   )
-  const [loading, setLoading] = useState(isConfigured)
+  const [group, setGroup] = useState(null)
+  const [players, setPlayers] = useState([])
+  const [sessions, setSessions] = useState([])
+  const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(configError)
   const [showPlayers, setShowPlayers] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
   const [newName, setNewName] = useState('')
   const [availabilityChoices, setAvailabilityChoices] = useState({})
+
+  const meetingTime = group?.meeting_time?.slice(0, 5) || '18:00'
+  const meetingDayName = DAYS[group?.meeting_day ?? 4]
 
   const activePlayers = players.filter((player) => player.active)
   const playerMap = useMemo(
@@ -129,27 +136,47 @@ function App() {
   }, [players, sessions])
 
   async function loadData() {
-    if (!isConfigured) return
     setLoading(true)
     setError('')
 
-    const [playersResult, sessionsResult] = await Promise.all([
-      supabase.from('players').select('*').order('created_at'),
+    if (!isConfigured) {
+      const storedGroup = localStorage.getItem(`pilota-group-${groupId}`)
+      if (!storedGroup) {
+        setError('Ce groupe est introuvable ou le lien est incomplet.')
+      } else {
+        setGroup(JSON.parse(storedGroup))
+      }
+      setLoading(false)
+      return
+    }
+
+    const [groupResult, playersResult, sessionsResult] = await Promise.all([
+      supabase.from('groups').select('*').eq('id', groupId).maybeSingle(),
+      supabase
+        .from('players')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at'),
       supabase
         .from('sessions')
         .select(
           'id, played_on, session_players(player_id), session_availability(player_id)',
         )
+        .eq('group_id', groupId)
         .order('played_on'),
     ])
 
-    if (playersResult.error || sessionsResult.error) {
+    if (groupResult.error || playersResult.error || sessionsResult.error) {
       setError(
-        playersResult.error?.message ||
+        groupResult.error?.message ||
+          playersResult.error?.message ||
           sessionsResult.error?.message ||
           'Impossible de charger le planning.',
       )
+    } else if (!groupResult.data) {
+      setError('Ce groupe est introuvable ou ce lien privé est invalide.')
     } else {
+      setGroup(groupResult.data)
       setPlayers(playersResult.data)
       setSessions(sessionsResult.data)
     }
@@ -158,7 +185,7 @@ function App() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [groupId, groupToken])
 
   async function addPlayer(event) {
     event.preventDefault()
@@ -177,17 +204,55 @@ function App() {
         },
       ]
       setPlayers(nextPlayers)
-      setSessions(makeDemoSessions(nextPlayers, 8, sessions))
+      setSessions(
+        makeDemoSessions(
+          nextPlayers,
+          8,
+          sessions,
+          group.meeting_day,
+          group.meeting_time,
+        ),
+      )
       setNewName('')
       return
     }
 
     const { error: insertError } = await supabase
       .from('players')
-      .insert({ name })
+      .insert({ name, group_id: groupId })
     if (insertError) setError(insertError.message)
     else {
       setNewName('')
+      await loadData()
+    }
+  }
+
+  async function saveGroupSettings(event) {
+    event.preventDefault()
+    setError('')
+    setSettingsSaved(false)
+    const changes = {
+      name: group.name.trim(),
+      meeting_day: Number(group.meeting_day),
+      meeting_time: group.meeting_time,
+      hero_message: group.hero_message.trim(),
+    }
+
+    if (!isConfigured) {
+      const updated = { ...group, ...changes }
+      localStorage.setItem(`pilota-group-${groupId}`, JSON.stringify(updated))
+      setGroup(updated)
+      setSettingsSaved(true)
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('groups')
+      .update(changes)
+      .eq('id', groupId)
+    if (updateError) setError(updateError.message)
+    else {
+      setSettingsSaved(true)
       await loadData()
     }
   }
@@ -205,6 +270,8 @@ function App() {
           nextPlayers.filter((item) => item.active),
           8,
           sessions,
+          group.meeting_day,
+          group.meeting_time,
         ),
       )
       return
@@ -224,7 +291,15 @@ function App() {
       return
     }
     if (!isConfigured) {
-      setSessions(makeDemoSessions(activePlayers, 12, sessions))
+      setSessions(
+        makeDemoSessions(
+          activePlayers,
+          12,
+          sessions,
+          group.meeting_day,
+          group.meeting_time,
+        ),
+      )
       return
     }
 
@@ -347,31 +422,52 @@ function App() {
     .slice(0, 12)
   const nextSession = upcomingSessions[0]
 
+  async function copyGroupLink() {
+    await navigator.clipboard.writeText(window.location.href)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1800)
+  }
+
+  if (!group) {
+    return (
+      <main className="link-state">
+        <span className="brand-mark">P</span>
+        <h1>{loading ? 'Ouverture du groupe…' : 'Lien invalide'}</h1>
+        {!loading && <p>{error}</p>}
+        {!loading && <a href="/">Créer un nouveau groupe</a>}
+      </main>
+    )
+  }
+
   return (
     <main>
       <header className="site-header">
-        <a className="brand" href="#">
+        <a className="brand" href="/">
           <span className="brand-mark">P</span>
-          <span>Pilota Lagunekin</span>
+          <span>{group?.name || 'Pilota Lagunekin'}</span>
         </a>
-        <button className="icon-button" onClick={() => setShowPlayers(true)}>
-          <Settings size={19} />
-          <span>Joueurs</span>
-        </button>
+        <div className="header-actions">
+          <button className="icon-button" onClick={copyGroupLink}>
+            <Share2 size={18} />
+            <span>{copied ? 'Lien copié' : 'Partager'}</span>
+          </button>
+          <button className="icon-button" onClick={() => setShowPlayers(true)}>
+            <Settings size={19} />
+            <span>Gérer</span>
+          </button>
+        </div>
       </header>
 
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Prochaine partie</p>
-          <h1>
-            Osteguna, <em>Pilota eguna!</em>
-          </h1>
+          <h1 className="custom-message">{group?.hero_message}</h1>
           <div className="next-date">
             <CalendarDays size={20} />
             {nextSession ? formatDate(nextSession.played_on) : 'Planning à créer'}
             <span />
             <Clock3 size={20} />
-            18h00
+            {meetingTime.replace(':', 'h')}
           </div>
         </div>
 
@@ -379,7 +475,7 @@ function App() {
           <div className="court-line horizontal" />
           <div className="court-line vertical" />
           <div className="ball" />
-          <span>Fronton</span>
+          <span>{group?.name}</span>
         </div>
       </section>
 
@@ -401,7 +497,7 @@ function App() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">La rotation</p>
-            <h2>Les prochains jeudis</h2>
+            <h2>Les prochains {meetingDayName.toLowerCase()}s</h2>
           </div>
           <button
             className="secondary-button"
@@ -547,7 +643,7 @@ function App() {
                     )}
                   </div>
                   <div className="session-footer">
-                    <Clock3 size={15} /> 18h00
+                    <Clock3 size={15} /> {meetingTime.replace(':', 'h')}
                     <span>{selected.length}/4 joueurs</span>
                   </div>
                 </article>
@@ -558,7 +654,7 @@ function App() {
       </section>
 
       <footer>
-        <span>À jeudi au fronton.</span>
+        <span>À {meetingDayName.toLowerCase()} !</span>
         <span>Planning équilibré automatiquement</span>
       </footer>
 
@@ -567,8 +663,8 @@ function App() {
           <aside className="modal" onMouseDown={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <p className="eyebrow">L'équipe</p>
-                <h2>Gérer les joueurs</h2>
+                <p className="eyebrow">Votre espace</p>
+                <h2>Gérer le groupe</h2>
               </div>
               <button
                 className="close-button"
@@ -579,6 +675,74 @@ function App() {
               </button>
             </div>
 
+            <form className="group-settings" onSubmit={saveGroupSettings}>
+              <label>
+                Nom du groupe
+                <input
+                  required
+                  maxLength={60}
+                  value={group.name}
+                  onChange={(event) =>
+                    setGroup((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <div className="form-row">
+                <label>
+                  Jour
+                  <select
+                    value={group.meeting_day}
+                    onChange={(event) =>
+                      setGroup((current) => ({
+                        ...current,
+                        meeting_day: Number(event.target.value),
+                      }))
+                    }
+                  >
+                    {DAYS.map((day, index) => (
+                      <option value={index} key={day}>{day}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Heure
+                  <input
+                    required
+                    type="time"
+                    value={group.meeting_time.slice(0, 5)}
+                    onChange={(event) =>
+                      setGroup((current) => ({
+                        ...current,
+                        meeting_time: `${event.target.value}:00`,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <label>
+                Message principal
+                <textarea
+                  required
+                  rows={2}
+                  maxLength={100}
+                  value={group.hero_message}
+                  onChange={(event) =>
+                    setGroup((current) => ({
+                      ...current,
+                      hero_message: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <button type="submit">
+                {settingsSaved ? 'Modifications enregistrées' : 'Enregistrer'}
+              </button>
+            </form>
+
+            <div className="modal-section-title">Joueurs du groupe</div>
             <form className="add-player" onSubmit={addPlayer}>
               <input
                 value={newName}
@@ -623,6 +787,17 @@ function App() {
       )}
     </main>
   )
+}
+
+function App() {
+  const params = new URLSearchParams(window.location.search)
+  const adminToken = params.get('admin')
+  const groupId = params.get('group')
+  const groupToken = params.get('key')
+
+  if (adminToken) return <Admin adminToken={adminToken} />
+  if (!groupId || !groupToken) return <Welcome />
+  return <GroupPage groupId={groupId} groupToken={groupToken} />
 }
 
 export default App
