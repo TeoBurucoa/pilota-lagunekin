@@ -116,10 +116,16 @@ function makeDemoSessions(
 const COURT_INSET = 25
 const BALL_SIZE = 32
 const BALL_SPEED = 340
+const PHONE_BALL_SPEED = 140
 
 function CourtBall() {
   const ballRef = useRef(null)
-  const velocity = useRef({ x: BALL_SPEED * 0.8, y: BALL_SPEED * 0.6 })
+  const phoneScreen = window.matchMedia('(max-width: 560px)')
+  const speed = useRef(phoneScreen.matches ? PHONE_BALL_SPEED : BALL_SPEED)
+  const velocity = useRef({
+    x: speed.current * 0.8,
+    y: speed.current * 0.6,
+  })
 
   useEffect(() => {
     const ball = ballRef.current
@@ -130,7 +136,18 @@ function CourtBall() {
     let y = height * 0.28
     ball.style.transform = `translate3d(${x}px, ${y}px, 0)`
 
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const updateSpeed = () => {
+      const next = phoneScreen.matches ? PHONE_BALL_SPEED : BALL_SPEED
+      const ratio = next / speed.current
+      speed.current = next
+      velocity.current.x *= ratio
+      velocity.current.y *= ratio
+    }
+    phoneScreen.addEventListener('change', updateSpeed)
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return () => phoneScreen.removeEventListener('change', updateSpeed)
+    }
 
     const resizeObserver = new ResizeObserver(() => {
       width = court.clientWidth
@@ -172,6 +189,7 @@ function CourtBall() {
     return () => {
       cancelAnimationFrame(frame)
       resizeObserver.disconnect()
+      phoneScreen.removeEventListener('change', updateSpeed)
     }
   }, [])
 
@@ -180,8 +198,8 @@ function CourtBall() {
       (Math.PI / 6 + Math.random() * (Math.PI / 6)) +
       Math.floor(Math.random() * 4) * (Math.PI / 2)
     velocity.current = {
-      x: Math.cos(angle) * BALL_SPEED,
-      y: Math.sin(angle) * BALL_SPEED,
+      x: Math.cos(angle) * speed.current,
+      y: Math.sin(angle) * speed.current,
     }
   }
 
