@@ -13,6 +13,49 @@
   --ink: #18372c;
   --muted: #68756e;
   --line: #d7d9cd;
+  --court: var(--green);
+  --court-shadow: #dce3d4;
+  --surface: #fffdf7;
+  --ball: var(--orange);
+  --ball-pattern: radial-gradient(
+    circle at 34% 30%,
+    #ffe7c2 0 12%,
+    transparent 13%
+  );
+}
+
+.theme-padel {
+  --green: #0d3b78;
+  --green-light: #dce9fa;
+  --orange: #2b7de9;
+  --cream: #f3f7fc;
+  --ink: #0f2a4d;
+  --muted: #5f7189;
+  --line: #d5e0ee;
+  --court: #1d5fc4;
+  --court-shadow: #d6e4f7;
+  --surface: #ffffff;
+  --ball: #d8f03a;
+  --ball-pattern:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.7) 0 9%, transparent 10%),
+    radial-gradient(
+      circle at -8% 50%,
+      transparent 54%,
+      rgba(255, 255, 255, 0.9) 55% 61%,
+      transparent 62%
+    ),
+    radial-gradient(
+      circle at 108% 50%,
+      transparent 54%,
+      rgba(255, 255, 255, 0.9) 55% 61%,
+      transparent 62%
+    );
+}
+
+.group-page {
+  min-height: 100vh;
+  color: var(--ink);
+  background: var(--cream);
 }
 
 * {
@@ -110,39 +153,6 @@ button {
   align-items: center;
 }
 
-.pelota-flight {
-  position: absolute;
-  top: 22px;
-  left: 30px;
-  width: min(44vw, 480px);
-  height: 24px;
-  pointer-events: none;
-}
-
-.pelota-flight::after {
-  content: '';
-  position: absolute;
-  top: 11px;
-  left: 5px;
-  width: calc(100% - 10px);
-  border-top: 1px dashed rgba(239, 107, 59, 0.28);
-}
-
-.pelota-ball {
-  position: absolute;
-  z-index: 1;
-  top: 1px;
-  left: 0;
-  width: 18px;
-  height: 18px;
-  background:
-    radial-gradient(circle at 35% 30%, #fff2d9 0 8%, transparent 9%),
-    var(--orange);
-  border-radius: 50%;
-  box-shadow: 0 4px 9px rgba(105, 49, 27, 0.24);
-  animation: pelota-travel 3.8s ease-in-out infinite alternate;
-}
-
 .eyebrow {
   margin: 0 0 10px;
   color: var(--orange);
@@ -196,9 +206,9 @@ h1 em {
   position: relative;
   min-height: 255px;
   overflow: hidden;
-  background: var(--green);
+  background: var(--court);
   border-radius: 2px 42px 2px 2px;
-  box-shadow: 18px 18px 0 #dce3d4;
+  box-shadow: 18px 18px 0 var(--court-shadow);
 }
 
 .court-card::before,
@@ -231,13 +241,16 @@ h1 em {
 .court-card .ball {
   position: absolute;
   z-index: 1;
-  top: 28%;
-  left: 25%;
+  top: 0;
+  left: 0;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--orange);
+  background: var(--ball-pattern), var(--ball);
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  touch-action: manipulation;
+  will-change: transform;
 }
 
 .court-card span {
@@ -278,7 +291,7 @@ h1 em {
 
 .content-section {
   padding: 64px max(30px, calc((100vw - 1120px) / 2));
-  background: #fffdf7;
+  background: var(--surface);
   border-top: 1px solid var(--line);
 }
 
@@ -673,6 +686,88 @@ footer {
 .group-form textarea:focus {
   border-color: var(--green);
   box-shadow: 0 0 0 3px rgba(23, 61, 47, 0.1);
+}
+
+.sport-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sport-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 50px;
+  color: #405248;
+  background: white;
+  border: 1px solid #cbd0c7;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.sport-option.selected {
+  color: white;
+  border-color: transparent;
+}
+
+.sport-pelote.selected {
+  background: #173d2f;
+}
+
+.sport-padel.selected {
+  background: #1d5fc4;
+}
+
+.sport-ball {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.sport-pelote .sport-ball {
+  background: #ef6b3b;
+}
+
+.sport-padel .sport-ball {
+  background: #d8f03a;
+  box-shadow: inset 0 0 0 1px rgba(13, 59, 120, 0.25);
+}
+
+.sport-tag.sport-padel {
+  color: #0d3b78;
+  background: #dce9fa;
+}
+
+.theme-padel .featured .lock-player.locked {
+  color: var(--ball);
+}
+
+.theme-padel .icon-button {
+  border-color: #b8cbe5;
+}
+
+.theme-padel .next-date {
+  color: #3e5574;
+}
+
+.theme-padel .session-card {
+  border-color: #dbe5f2;
+}
+
+.theme-padel .availability-chip {
+  color: #1c4a86;
+  background: #e9f1fc;
+}
+
+.theme-padel .modal {
+  background: var(--surface);
+}
+
+.theme-padel .fairness-note {
+  color: #3e5574;
+  background: #edf3fb;
 }
 
 .form-row {
@@ -1090,23 +1185,7 @@ footer {
   }
 }
 
-@keyframes pelota-travel {
-  0% {
-    left: 0;
-    transform: translateY(3px) rotate(0);
-  }
-  45% {
-    left: 50%;
-    transform: translateY(-7px) rotate(220deg);
-  }
-  100% {
-    left: calc(100% - 18px);
-    transform: translateY(3px) rotate(440deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .pelota-ball,
   .spin {
     animation: none;
   }
@@ -1241,7 +1320,7 @@ footer {
 
   .court-card {
     min-height: 132px;
-    box-shadow: 10px 10px 0 #dce3d4;
+    box-shadow: 10px 10px 0 var(--court-shadow);
   }
 
   .court-card span {

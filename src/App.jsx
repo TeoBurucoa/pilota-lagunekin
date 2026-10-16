@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays,
   Clock3,
@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { configError, createGroupClient, isConfigured } from './supabase'
-import Welcome, { DAYS, FREQUENCIES } from './Welcome'
+import Welcome, { DAYS, FREQUENCIES, SPORTS } from './Welcome'
 import Admin from './Admin'
 
 const dateKey = (date) => {
@@ -111,6 +111,81 @@ function makeDemoSessions(
       ),
     }
   })
+}
+
+const COURT_INSET = 25
+const BALL_SIZE = 32
+const BALL_SPEED = 340
+
+function CourtBall() {
+  const ballRef = useRef(null)
+  const velocity = useRef({ x: BALL_SPEED * 0.8, y: BALL_SPEED * 0.6 })
+
+  useEffect(() => {
+    const ball = ballRef.current
+    const court = ball.parentElement
+    let width = court.clientWidth
+    let height = court.clientHeight
+    let x = width * 0.22
+    let y = height * 0.28
+    ball.style.transform = `translate3d(${x}px, ${y}px, 0)`
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const resizeObserver = new ResizeObserver(() => {
+      width = court.clientWidth
+      height = court.clientHeight
+    })
+    resizeObserver.observe(court)
+
+    let last = performance.now()
+    let frame
+    const step = (now) => {
+      const elapsed = Math.min((now - last) / 1000, 0.05)
+      last = now
+      const v = velocity.current
+      const maxX = width - COURT_INSET - BALL_SIZE
+      const maxY = height - COURT_INSET - BALL_SIZE
+      x += v.x * elapsed
+      y += v.y * elapsed
+
+      if (x <= COURT_INSET) {
+        x = COURT_INSET
+        v.x = Math.abs(v.x)
+      } else if (x >= maxX) {
+        x = maxX
+        v.x = -Math.abs(v.x)
+      }
+      if (y <= COURT_INSET) {
+        y = COURT_INSET
+        v.y = Math.abs(v.y)
+      } else if (y >= maxY) {
+        y = maxY
+        v.y = -Math.abs(v.y)
+      }
+
+      ball.style.transform = `translate3d(${x}px, ${y}px, 0)`
+      frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      resizeObserver.disconnect()
+    }
+  }, [])
+
+  function changeDirection() {
+    const angle =
+      (Math.PI / 6 + Math.random() * (Math.PI / 6)) +
+      Math.floor(Math.random() * 4) * (Math.PI / 2)
+    velocity.current = {
+      x: Math.cos(angle) * BALL_SPEED,
+      y: Math.sin(angle) * BALL_SPEED,
+    }
+  }
+
+  return <span ref={ballRef} className="ball" onPointerDown={changeDirection} />
 }
 
 function HeroMessage({ message = '' }) {
@@ -270,6 +345,7 @@ function GroupPage({ groupId, groupToken }) {
       meeting_day: Number(group.meeting_day),
       meeting_time: group.meeting_time,
       frequency_weeks: Number(group.frequency_weeks || 1),
+      sport: group.sport || 'pelote',
       hero_message: group.hero_message.trim(),
     }
 
@@ -502,7 +578,7 @@ function GroupPage({ groupId, groupToken }) {
   }
 
   return (
-    <main>
+    <main className={`group-page theme-${group.sport || 'pelote'}`}>
       <header className="site-header">
         <a className="brand" href="/">
           <span className="brand-mark">P</span>
@@ -521,9 +597,6 @@ function GroupPage({ groupId, groupToken }) {
       </header>
 
       <section className="hero">
-        <div className="pelota-flight" aria-hidden="true">
-          <span className="pelota-ball" />
-        </div>
         <div className="hero-copy">
           <p className="eyebrow">Prochaine partie</p>
           <HeroMessage message={group?.hero_message} />
@@ -539,7 +612,7 @@ function GroupPage({ groupId, groupToken }) {
         <div className="court-card" aria-hidden="true">
           <div className="court-line horizontal" />
           <div className="court-line vertical" />
-          <div className="ball" />
+          <CourtBall />
           <span>{group?.name}</span>
         </div>
       </section>
@@ -776,6 +849,24 @@ function GroupPage({ groupId, groupToken }) {
                     }))
                   }
                 />
+              </label>
+              <label>
+                Sport
+                <select
+                  value={group.sport || 'pelote'}
+                  onChange={(event) =>
+                    setGroup((current) => ({
+                      ...current,
+                      sport: event.target.value,
+                    }))
+                  }
+                >
+                  {SPORTS.map((sport) => (
+                    <option value={sport.value} key={sport.value}>
+                      {sport.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <div className="form-row">
                 <label>

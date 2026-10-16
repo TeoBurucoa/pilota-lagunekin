@@ -5,6 +5,7 @@ create table if not exists public.groups (
   access_token uuid not null unique default gen_random_uuid(),
   slug text not null unique,
   name text not null check (char_length(trim(name)) between 1 and 60),
+  sport text not null default 'pelote' check (sport in ('pelote', 'padel')),
   meeting_day smallint not null default 4 check (meeting_day between 0 and 6),
   meeting_time time not null default '18:00',
   frequency_weeks smallint not null default 1

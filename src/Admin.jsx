@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, LogOut, ShieldCheck, Trash2 } from 'lucide-react'
 import { createAdminClient, isConfigured } from './supabase'
-import { DAYS, FREQUENCIES } from './Welcome'
+import { DAYS, FREQUENCIES, SPORTS } from './Welcome'
 
 const formatCreatedAt = (value) =>
   new Intl.DateTimeFormat('fr-FR', {
@@ -121,6 +121,11 @@ export default function Admin({ adminToken }) {
                 <h2>{group.name}</h2>
                 <p>{group.hero_message}</p>
                 <div className="admin-group-meta">
+                  <span className={`sport-tag sport-${group.sport || 'pelote'}`}>
+                    {SPORTS.find(
+                      (sport) => sport.value === (group.sport || 'pelote'),
+                    )?.label}
+                  </span>
                   <span>{DAYS[group.meeting_day]}</span>
                   <span>{group.meeting_time.slice(0, 5).replace(':', 'h')}</span>
                   <span>

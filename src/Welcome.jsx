@@ -12,6 +12,11 @@ export const DAYS = [
   'Samedi',
 ]
 
+export const SPORTS = [
+  { value: 'pelote', label: 'Pelote', message: 'Osteguna, Pilota eguna!' },
+  { value: 'padel', label: 'Padel', message: 'Prêts ? Padel time!' },
+]
+
 export const FREQUENCIES = [
   { value: 1, label: 'Toutes les semaines' },
   { value: 2, label: 'Toutes les deux semaines' },
@@ -31,6 +36,7 @@ const makeSlug = (value) =>
 export default function Welcome() {
   const [form, setForm] = useState({
     name: '',
+    sport: 'pelote',
     meeting_day: 4,
     meeting_time: '18:00',
     frequency_weeks: 1,
@@ -41,6 +47,20 @@ export default function Welcome() {
 
   const update = (field) => (event) =>
     setForm((current) => ({ ...current, [field]: event.target.value }))
+
+  const chooseSport = (sport) =>
+    setForm((current) => {
+      const isDefaultMessage = SPORTS.some(
+        (item) => item.message === current.hero_message,
+      )
+      return {
+        ...current,
+        sport,
+        hero_message: isDefaultMessage
+          ? SPORTS.find((item) => item.value === sport).message
+          : current.hero_message,
+      }
+    })
 
   async function createGroup(event) {
     event.preventDefault()
@@ -55,6 +75,7 @@ export default function Welcome() {
       access_token: token,
       slug,
       name: form.name.trim(),
+      sport: form.sport,
       created_at: new Date().toISOString(),
       meeting_day: Number(form.meeting_day),
       meeting_time: `${form.meeting_time}:00`,
@@ -111,6 +132,24 @@ export default function Welcome() {
           </div>
 
           {error && <div className="form-error">{error}</div>}
+
+          <div className="sport-picker" role="radiogroup" aria-label="Sport">
+            {SPORTS.map((sport) => (
+              <button
+                type="button"
+                role="radio"
+                aria-checked={form.sport === sport.value}
+                className={`sport-option sport-${sport.value} ${
+                  form.sport === sport.value ? 'selected' : ''
+                }`}
+                onClick={() => chooseSport(sport.value)}
+                key={sport.value}
+              >
+                <span className="sport-ball" />
+                {sport.label}
+              </button>
+            ))}
+          </div>
 
           <label>
             Nom du groupe
