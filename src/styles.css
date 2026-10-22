@@ -1310,6 +1310,13 @@ footer {
   font-weight: 600;
 }
 
+.player-form-error {
+  margin: -12px 0 16px;
+  color: #812f29;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .roster {
   display: grid;
 }

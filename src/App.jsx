@@ -258,10 +258,23 @@ const formatDate = (value) =>
     month: 'long',
   }).format(new Date(`${value}T12:00:00`))
 
-function GroupPage({ groupId, groupToken }) {
-  const [adminToken] = useState(
-    () => localStorage.getItem(ADMIN_TOKEN_KEY) || '',
+function readVisitAdminToken() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY)
+  const params = new URLSearchParams(window.location.search)
+  const fromUrl = params.get('admin')
+  if (!fromUrl) return ''
+  params.delete('admin')
+  const query = params.toString()
+  window.history.replaceState(
+    {},
+    '',
+    `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`,
   )
+  return fromUrl
+}
+
+function GroupPage({ groupId, groupToken }) {
+  const [adminToken] = useState(readVisitAdminToken)
   const [isAdmin, setIsAdmin] = useState(false)
   const supabase = useMemo(
     () => createGroupClient(groupToken, isAdmin ? adminToken : ''),
@@ -291,10 +304,7 @@ function GroupPage({ groupId, groupToken }) {
       .then(({ data, error: adminError }) => {
         if (cancelled) return
         if (!adminError && data === true) setIsAdmin(true)
-        else if (!adminError) {
-          localStorage.removeItem(ADMIN_TOKEN_KEY)
-          setIsAdmin(false)
-        }
+        else setIsAdmin(false)
       })
     return () => {
       cancelled = true
@@ -375,6 +385,16 @@ function GroupPage({ groupId, groupToken }) {
     event.preventDefault()
     const name = newName.trim()
     if (!name) return
+    const normalizedName = name.toLocaleLowerCase('fr')
+    const nameTaken = players.some(
+      (player) =>
+        player.active &&
+        player.name.trim().toLocaleLowerCase('fr') === normalizedName,
+    )
+    if (nameTaken) {
+      setError('Ce nom est déjà utilisé dans le groupe.')
+      return
+    }
     setError('')
 
     if (!isConfigured) {
@@ -406,8 +426,13 @@ function GroupPage({ groupId, groupToken }) {
     const { error: insertError } = await supabase
       .from('players')
       .insert({ name, group_id: groupId })
-    if (insertError) setError(insertError.message)
-    else {
+    if (insertError) {
+      setError(
+        insertError.code === '23505'
+          ? 'Ce nom est déjà utilisé dans le groupe.'
+          : insertError.message,
+      )
+    } else {
       setNewName('')
       await loadData()
     }
@@ -715,7 +740,7 @@ function GroupPage({ groupId, groupToken }) {
   const featuredSessionId = upcomingSessions.find((session) => !session.manual)?.id
   const formatClock = (value) =>
     (value || group?.meeting_time || '18:00:00').slice(0, 5).replace(':', 'h')
-  const canRecalculate = !isConfigured || isAdmin
+  const canRecalculate = isAdmin
 
   async function copyGroupLink() {
     await navigator.clipboard.writeText(window.location.href)
@@ -1212,6 +1237,7 @@ function GroupPage({ groupId, groupToken }) {
                 <Plus size={18} /> Ajouter
               </button>
             </form>
+            {error && <p className="player-form-error">{error}</p>}
 
             <div className="roster">
               {activePlayers.map((player) => (
@@ -1254,9 +1280,11 @@ function App() {
   const groupId = params.get('group')
   const groupToken = params.get('key')
 
+  if (groupId && groupToken) {
+    return <GroupPage groupId={groupId} groupToken={groupToken} />
+  }
   if (adminToken) return <Admin adminToken={adminToken} />
-  if (!groupId || !groupToken) return <Welcome />
-  return <GroupPage groupId={groupId} groupToken={groupToken} />
+  return <Welcome />
 }
 
 export default App

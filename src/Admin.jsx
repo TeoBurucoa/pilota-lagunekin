@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, LogOut, ShieldCheck, Trash2 } from 'lucide-react'
-import { ADMIN_TOKEN_KEY, createAdminClient, isConfigured } from './supabase'
+import { createAdminClient, isConfigured } from './supabase'
 import { DAYS, FREQUENCIES, SPORTS } from './Welcome'
 
 const formatCreatedAt = (value) =>
@@ -35,7 +35,6 @@ export default function Admin({ adminToken }) {
       }
 
       setAuthorized(true)
-      localStorage.setItem(ADMIN_TOKEN_KEY, adminToken)
       const { data, error: groupsError } = await client
         .from('groups')
         .select('*')
@@ -139,7 +138,7 @@ export default function Admin({ adminToken }) {
                 <div className="admin-card-actions">
                   <a
                     className="open-group-button"
-                    href={`/?group=${group.id}&key=${group.access_token}`}
+                    href={`/?group=${group.id}&key=${group.access_token}&admin=${encodeURIComponent(adminToken)}`}
                   >
                     Ouvrir <ExternalLink size={16} />
                   </a>
