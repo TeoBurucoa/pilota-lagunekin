@@ -531,14 +531,14 @@ h1 em {
   min-height: 46px;
   margin-inline: -6px;
   padding: 4px 6px;
-  color: #5c6560;
-  background: #d2d6d0;
+  color: #146338;
+  background: #d8f3e2;
   border-radius: 8px;
 }
 
 .scheduled-player.confirmed .avatar {
-  color: #4e5853;
-  background: #c5cac4;
+  color: #146338;
+  background: #b7e4c7;
 }
 
 .confirm-player,
@@ -559,7 +559,7 @@ h1 em {
 }
 
 .confirm-player.confirmed {
-  color: #2f6b4f;
+  color: #127a3a;
 }
 
 .remove-from-session:hover {
@@ -573,17 +573,17 @@ h1 em {
 }
 
 .featured .scheduled-player.confirmed {
-  color: #4d5752;
-  background: #d7dbd6;
+  color: #e9fff1;
+  background: rgba(126, 214, 156, 0.38);
 }
 
 .featured .scheduled-player.confirmed .avatar {
-  color: #4d5752;
-  background: #c5cac5;
+  color: #e9fff1;
+  background: rgba(186, 236, 204, 0.34);
 }
 
 .featured .confirm-player.confirmed {
-  color: #2f6b4f;
+  color: #b6f0c8;
 }
 
 .featured .confirm-player:hover {
@@ -937,7 +937,7 @@ footer {
 }
 
 .theme-padel .featured .confirm-player.confirmed {
-  color: #1d5fc4;
+  color: #b6f0c8;
 }
 
 .theme-padel .icon-button {
@@ -1232,6 +1232,26 @@ footer {
   margin-bottom: 30px;
   padding-bottom: 26px;
   border-bottom: 1px solid var(--line);
+}
+
+.group-settings fieldset {
+  display: grid;
+  gap: 13px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group-settings fieldset:disabled {
+  opacity: 0.72;
+}
+
+.settings-admin-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .group-settings label {

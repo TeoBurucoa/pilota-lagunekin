@@ -440,6 +440,10 @@ function GroupPage({ groupId, groupToken }) {
 
   async function saveGroupSettings(event) {
     event.preventDefault()
+    if (!isAdmin) {
+      setError('Seul un administrateur peut modifier le groupe.')
+      return
+    }
     setError('')
     setSettingsSaved(false)
     const changes = {
@@ -1123,6 +1127,12 @@ function GroupPage({ groupId, groupToken }) {
             </div>
 
             <form className="group-settings" onSubmit={saveGroupSettings}>
+              {!isAdmin && (
+                <p className="settings-admin-note">
+                  Seul l’administrateur peut modifier ces réglages.
+                </p>
+              )}
+              <fieldset disabled={!isAdmin}>
               <label>
                 Nom du groupe
                 <input
@@ -1223,6 +1233,7 @@ function GroupPage({ groupId, groupToken }) {
               <button type="submit">
                 {settingsSaved ? 'Modifications enregistrées' : 'Enregistrer'}
               </button>
+              </fieldset>
             </form>
 
             <div className="modal-section-title">Joueurs du groupe</div>
