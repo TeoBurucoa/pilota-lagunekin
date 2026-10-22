@@ -116,7 +116,7 @@ export default function Welcome() {
             Créez votre groupe. <em>Jouez ensemble.</em>
           </h1>
           <p className="welcome-intro">
-            Le site pour les "Grande Jugadores". Gestion des créneaux réguliers entre amis : rotation automatique mas personnalisable.
+            Le site pour les "Grande Jugadores". Gestion des créneaux réguliers entre amis : rotation automatique mais personnalisable. Jo Pilota!
           </p>
           <div className="welcome-points">
             <span><Users size={18} /> Votre espace privé</span>
