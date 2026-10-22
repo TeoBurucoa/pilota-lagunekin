@@ -13,14 +13,15 @@ try {
 
 export const isConfigured = Boolean(url && key && !configError)
 
-export const createGroupClient = (groupToken = '') =>
-  isConfigured
-    ? createClient(url, key, {
-        global: {
-          headers: groupToken ? { 'x-group-token': groupToken } : {},
-        },
-      })
-    : null
+export const ADMIN_TOKEN_KEY = 'pilota-admin-token'
+
+export const createGroupClient = (groupToken = '', adminToken = '') => {
+  if (!isConfigured) return null
+  const headers = {}
+  if (groupToken) headers['x-group-token'] = groupToken
+  if (adminToken) headers['x-admin-token'] = adminToken
+  return createClient(url, key, { global: { headers } })
+}
 
 export const createAdminClient = (adminToken = '') =>
   isConfigured

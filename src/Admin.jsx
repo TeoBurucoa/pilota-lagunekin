@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, LogOut, ShieldCheck, Trash2 } from 'lucide-react'
-import { createAdminClient, isConfigured } from './supabase'
+import { ADMIN_TOKEN_KEY, createAdminClient, isConfigured } from './supabase'
 import { DAYS, FREQUENCIES, SPORTS } from './Welcome'
 
 const formatCreatedAt = (value) =>
@@ -35,6 +35,7 @@ export default function Admin({ adminToken }) {
       }
 
       setAuthorized(true)
+      localStorage.setItem(ADMIN_TOKEN_KEY, adminToken)
       const { data, error: groupsError } = await client
         .from('groups')
         .select('*')

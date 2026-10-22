@@ -311,9 +311,134 @@ h1 em {
   line-height: 1.1;
 }
 
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .secondary-button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.6;
+}
+
+.manual-slot-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: -8px 0 22px;
+}
+
+.manual-slot-form label {
+  display: grid;
+  gap: 6px;
+  color: #536159;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.manual-slot-form input {
+  min-width: 0;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #cbd0c7;
+  border-radius: 7px;
+}
+
+.manual-slot-form button {
+  min-height: 42px;
+  padding: 0 16px;
+  color: white;
+  background: var(--orange);
+  border: 0;
+  border-radius: 7px;
+  font-weight: 700;
+}
+
+.manual-slot-form button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.player-setup {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  max-width: 480px;
+  margin: 8px auto 28px;
+  padding: 36px 28px;
+  text-align: center;
+  background: white;
+  border: 1px dashed var(--orange);
+  border-radius: 16px;
+}
+
+.player-setup h3 {
+  margin: 0;
+  color: var(--green);
+  font-family: 'DM Serif Display', serif;
+  font-size: 34px;
+  font-weight: 400;
+}
+
+.player-setup > p:last-of-type {
+  margin: 0;
+  color: var(--muted);
+}
+
+.setup-roster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.setup-roster span {
+  padding: 6px 10px;
+  color: var(--green);
+  background: var(--green-light);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.add-player-prominent {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 360px);
+}
+
+.add-player-prominent input {
+  width: 100%;
+  padding: 12px 14px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #cbd0c7;
+  border-radius: 8px;
+  outline: none;
+}
+
+.add-player-prominent input:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(23, 61, 47, 0.1);
+}
+
+.add-player-prominent button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  color: white;
+  background: var(--orange);
+  border: 0;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .schedule-grid {
@@ -323,10 +448,37 @@ h1 em {
 }
 
 .session-card {
+  position: relative;
   padding: 24px;
   background: white;
   border: 1px solid #dfe1d8;
   border-radius: 12px;
+}
+
+.session-card.manual {
+  padding-right: 56px;
+  color: var(--ink);
+  background: #fff3e4;
+  border-color: #e7a15a;
+}
+
+.remove-manual-session {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: #a15a32;
+  background: rgba(255, 255, 255, 0.72);
+  border: 0;
+  border-radius: 50%;
+}
+
+.remove-manual-session:hover {
+  color: white;
+  background: #c45c32;
 }
 
 .session-card.featured {
@@ -375,7 +527,21 @@ h1 em {
   margin-left: auto;
 }
 
-.lock-player,
+.scheduled-player.confirmed {
+  min-height: 46px;
+  margin-inline: -6px;
+  padding: 4px 6px;
+  color: #5c6560;
+  background: #d2d6d0;
+  border-radius: 8px;
+}
+
+.scheduled-player.confirmed .avatar {
+  color: #4e5853;
+  background: #c5cac4;
+}
+
+.confirm-player,
 .remove-from-session {
   display: grid;
   place-items: center;
@@ -387,8 +553,13 @@ h1 em {
   border-radius: 50%;
 }
 
-.lock-player.locked {
-  color: var(--orange);
+.confirm-player:hover {
+  color: var(--green);
+  background: rgba(23, 61, 47, 0.08);
+}
+
+.confirm-player.confirmed {
+  color: #2f6b4f;
 }
 
 .remove-from-session:hover {
@@ -396,18 +567,38 @@ h1 em {
   background: #f7e4df;
 }
 
-.featured .lock-player,
+.featured .confirm-player,
 .featured .remove-from-session {
   color: #9db2a7;
 }
 
-.featured .lock-player.locked {
-  color: #ffb089;
+.featured .scheduled-player.confirmed {
+  color: #4d5752;
+  background: #d7dbd6;
+}
+
+.featured .scheduled-player.confirmed .avatar {
+  color: #4d5752;
+  background: #c5cac5;
+}
+
+.featured .confirm-player.confirmed {
+  color: #2f6b4f;
+}
+
+.featured .confirm-player:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .featured .remove-from-session:hover {
   color: white;
   background: rgba(255, 255, 255, 0.12);
+}
+
+.scheduled-player.confirmed .remove-from-session:hover {
+  color: #b7493e;
+  background: #f7e4df;
 }
 
 .open-slot {
@@ -740,8 +931,13 @@ footer {
   background: #dce9fa;
 }
 
-.theme-padel .featured .lock-player.locked {
-  color: var(--ball);
+.theme-padel .session-card.manual {
+  background: #fff4e8;
+  border-color: #e2a56a;
+}
+
+.theme-padel .featured .confirm-player.confirmed {
+  color: #1d5fc4;
 }
 
 .theme-padel .icon-button {
@@ -1342,9 +1538,34 @@ footer {
     font-size: 30px;
   }
 
+  .section-actions {
+    flex-direction: column;
+  }
+
   .secondary-button {
     justify-content: center;
     min-height: 44px;
+  }
+
+  .manual-slot-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .manual-slot-form input,
+  .manual-slot-form button,
+  .add-player-prominent input,
+  .add-player-prominent button {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .player-setup {
+    padding: 24px 16px;
+  }
+
+  .player-setup h3 {
+    font-size: 28px;
   }
 
   .schedule-grid {
@@ -1359,8 +1580,9 @@ footer {
     font-size: 22px;
   }
 
-  .lock-player,
+  .confirm-player,
   .remove-from-session,
+  .remove-manual-session,
   .close-button,
   .roster-player > button {
     width: 40px;

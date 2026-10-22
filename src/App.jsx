@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays,
+  Check,
   Clock3,
-  Lock,
-  LockOpen,
   Plus,
   RotateCw,
   Settings,
@@ -13,7 +12,13 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { configError, createGroupClient, isConfigured } from './supabase'
+import {
+  ADMIN_TOKEN_KEY,
+  configError,
+  createAdminClient,
+  createGroupClient,
+  isConfigured,
+} from './supabase'
 import Welcome, { DAYS, FREQUENCIES, SPORTS } from './Welcome'
 import Admin from './Admin'
 
@@ -69,11 +74,31 @@ function makeDemoSessions(
 
   const activeIds = new Set(players.map((player) => player.id))
 
-  return Array.from({ length: weeks }, (_, week) => {
+  const generated = Array.from({ length: weeks }, (_, week) => {
     const date = new Date(firstDate)
     date.setDate(firstDate.getDate() + week * 7 * frequencyWeeks)
     const playedOn = dateKey(date)
     const previous = previousSessions.find((item) => item.played_on === playedOn)
+    if (previous?.manual) {
+      const roster = (previous.session_players || []).filter((entry) =>
+        activeIds.has(entry.player_id),
+      )
+      roster.forEach((entry) => {
+        counts.set(entry.player_id, (counts.get(entry.player_id) || 0) + 1)
+        lastPlayed.set(entry.player_id, week)
+      })
+      return {
+        ...previous,
+        played_on: playedOn,
+        manual: true,
+        session_players: roster,
+        session_availability: (previous.session_availability || []).filter(
+          (entry) =>
+            activeIds.has(entry.player_id) &&
+            !roster.some((item) => item.player_id === entry.player_id),
+        ),
+      }
+    }
     const lockedEntries = (previous?.session_players || []).filter(
       (entry) => entry.locked && activeIds.has(entry.player_id),
     )
@@ -111,6 +136,15 @@ function makeDemoSessions(
       ),
     }
   })
+
+  const generatedDates = new Set(generated.map((session) => session.played_on))
+  const extraManual = previousSessions.filter(
+    (session) => session.manual && !generatedDates.has(session.played_on),
+  )
+
+  return [...generated, ...extraManual].sort((left, right) =>
+    left.played_on.localeCompare(right.played_on),
+  )
 }
 
 const COURT_INSET = 25
@@ -225,23 +259,48 @@ const formatDate = (value) =>
   }).format(new Date(`${value}T12:00:00`))
 
 function GroupPage({ groupId, groupToken }) {
+  const [adminToken] = useState(
+    () => localStorage.getItem(ADMIN_TOKEN_KEY) || '',
+  )
+  const [isAdmin, setIsAdmin] = useState(false)
   const supabase = useMemo(
-    () => createGroupClient(groupToken),
-    [groupToken],
+    () => createGroupClient(groupToken, isAdmin ? adminToken : ''),
+    [groupToken, isAdmin, adminToken],
   )
   const [group, setGroup] = useState(null)
   const [players, setPlayers] = useState([])
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
+  const [savingSlot, setSavingSlot] = useState(false)
   const [error, setError] = useState(configError)
   const [showPlayers, setShowPlayers] = useState(false)
+  const [showSlotForm, setShowSlotForm] = useState(false)
+  const [manualDate, setManualDate] = useState('')
+  const [manualTime, setManualTime] = useState('18:00')
   const [copied, setCopied] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [newName, setNewName] = useState('')
   const [availabilityChoices, setAvailabilityChoices] = useState({})
 
-  const meetingTime = group?.meeting_time?.slice(0, 5) || '18:00'
+  useEffect(() => {
+    if (!isConfigured || !adminToken) return undefined
+    let cancelled = false
+    createAdminClient(adminToken)
+      .rpc('request_is_admin')
+      .then(({ data, error: adminError }) => {
+        if (cancelled) return
+        if (!adminError && data === true) setIsAdmin(true)
+        else if (!adminError) {
+          localStorage.removeItem(ADMIN_TOKEN_KEY)
+          setIsAdmin(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [adminToken])
+
   const meetingDayName = DAYS[group?.meeting_day ?? 4]
 
   const activePlayers = players.filter((player) => player.active)
@@ -285,7 +344,7 @@ function GroupPage({ groupId, groupToken }) {
       supabase
         .from('sessions')
         .select(
-          'id, played_on, session_players(player_id, locked), session_availability(player_id)',
+          'id, played_on, manual, starts_at, session_players(player_id, locked), session_availability(player_id)',
         )
         .eq('group_id', groupId)
         .order('played_on'),
@@ -417,6 +476,10 @@ function GroupPage({ groupId, groupToken }) {
   }
 
   async function generateSchedule() {
+    if (isConfigured && !isAdmin) {
+      setError('Seul un administrateur peut recalculer le planning.')
+      return
+    }
     if (activePlayers.length < 4) {
       setError('Il faut au moins 4 joueurs actifs pour créer le planning.')
       return
@@ -445,6 +508,74 @@ function GroupPage({ groupId, groupToken }) {
     if (rpcError) setError(rpcError.message)
     else await loadData()
     setWorking(false)
+  }
+
+  function openSlotForm() {
+    setManualDate('')
+    setManualTime((group?.meeting_time || '18:00:00').slice(0, 5))
+    setShowSlotForm(true)
+    setError('')
+  }
+
+  async function createManualSession(event) {
+    event.preventDefault()
+    const playedOn = manualDate
+    const startsAt = manualTime.length === 5 ? `${manualTime}:00` : manualTime
+    if (!playedOn || !manualTime) return
+    if (sessions.some((session) => session.played_on === playedOn)) {
+      setError('Un créneau existe déjà ce jour-là.')
+      return
+    }
+
+    setError('')
+    if (!isConfigured) {
+      setSessions((current) =>
+        [
+          ...current,
+          {
+            id: `manual-${crypto.randomUUID()}`,
+            played_on: playedOn,
+            starts_at: startsAt,
+            manual: true,
+            session_players: [],
+            session_availability: [],
+          },
+        ].sort((left, right) => left.played_on.localeCompare(right.played_on)),
+      )
+      setShowSlotForm(false)
+      return
+    }
+
+    setSavingSlot(true)
+    const { error: slotError } = await supabase.rpc('create_manual_session', {
+      p_played_on: playedOn,
+      p_starts_at: startsAt,
+    })
+    if (slotError) setError(slotError.message)
+    else {
+      setShowSlotForm(false)
+      await loadData()
+    }
+    setSavingSlot(false)
+  }
+
+  async function removeManualSession(session) {
+    if (!session.manual) return
+    if (!window.confirm(`Retirer le créneau du ${formatDate(session.played_on)} ?`)) {
+      return
+    }
+    setError('')
+
+    if (!isConfigured) {
+      setSessions((current) => current.filter((item) => item.id !== session.id))
+      return
+    }
+
+    const { error: deleteError } = await supabase.rpc('delete_manual_session', {
+      p_session_id: session.id,
+    })
+    if (deleteError) setError(deleteError.message)
+    else await loadData()
   }
 
   function updateDemoSession(sessionId, update) {
@@ -573,10 +704,18 @@ function GroupPage({ groupId, groupToken }) {
     await loadData()
   }
 
-  const upcomingSessions = sessions
+  const futureSessions = sessions
     .filter((session) => session.played_on >= dateKey(new Date()))
-    .slice(0, 12)
+    .sort((left, right) => left.played_on.localeCompare(right.played_on))
+  const upcomingSessions = [
+    ...futureSessions.filter((session) => !session.manual).slice(0, 12),
+    ...futureSessions.filter((session) => session.manual),
+  ].sort((left, right) => left.played_on.localeCompare(right.played_on))
   const nextSession = upcomingSessions[0]
+  const featuredSessionId = upcomingSessions.find((session) => !session.manual)?.id
+  const formatClock = (value) =>
+    (value || group?.meeting_time || '18:00:00').slice(0, 5).replace(':', 'h')
+  const canRecalculate = !isConfigured || isAdmin
 
   async function copyGroupLink() {
     await navigator.clipboard.writeText(window.location.href)
@@ -623,7 +762,7 @@ function GroupPage({ groupId, groupToken }) {
             {nextSession ? formatDate(nextSession.played_on) : 'Planning à créer'}
             <span />
             <Clock3 size={20} />
-            {meetingTime.replace(':', 'h')}
+            {formatClock(nextSession?.starts_at)}
           </div>
         </div>
 
@@ -653,28 +792,106 @@ function GroupPage({ groupId, groupToken }) {
         <div className="section-heading">
           <div>
             <p className="eyebrow">La rotation</p>
-            <h2>Les prochains {meetingDayName.toLowerCase()}s</h2>
+            <h2>Les prochains créneaux</h2>
           </div>
-          <button
-            className="secondary-button"
-            onClick={generateSchedule}
-            disabled={working}
-          >
-            <RotateCw size={17} className={working ? 'spin' : ''} />
-            {sessions.length ? 'Recalculer le planning' : 'Créer le planning'}
-          </button>
+          <div className="section-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => (showSlotForm ? setShowSlotForm(false) : openSlotForm())}
+            >
+              <Plus size={17} />
+              Ajouter un créneau
+            </button>
+            {canRecalculate && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={generateSchedule}
+                disabled={working}
+              >
+                <RotateCw size={17} className={working ? 'spin' : ''} />
+                {sessions.length ? 'Recalculer le planning' : 'Créer le planning'}
+              </button>
+            )}
+          </div>
         </div>
+
+        {showSlotForm && (
+          <form className="manual-slot-form" onSubmit={createManualSession}>
+            <label>
+              Jour
+              <input
+                required
+                type="date"
+                min={dateKey(new Date())}
+                value={manualDate}
+                onChange={(event) => setManualDate(event.target.value)}
+              />
+            </label>
+            <label>
+              Horaire
+              <input
+                required
+                type="time"
+                value={manualTime}
+                onChange={(event) => setManualTime(event.target.value)}
+              />
+            </label>
+            <button type="submit" disabled={savingSlot}>
+              {savingSlot ? 'Création…' : 'Créer le créneau'}
+            </button>
+          </form>
+        )}
 
         {loading ? (
           <div className="empty-state">Chargement du planning…</div>
-        ) : upcomingSessions.length === 0 ? (
-          <div className="empty-state">
-            Ajoutez au moins quatre joueurs puis créez le planning.
-          </div>
         ) : (
+          <>
+            {activePlayers.length < 4 && (
+              <div className="player-setup">
+                <p className="eyebrow">Pour commencer</p>
+                <h3>
+                  {activePlayers.length === 0
+                    ? 'Ajoutez les joueurs'
+                    : `${activePlayers.length} joueur${activePlayers.length > 1 ? 's' : ''} sur 4`}
+                </h3>
+                <p>Il faut quatre joueurs pour préparer le planning.</p>
+                {activePlayers.length > 0 && (
+                  <div className="setup-roster">
+                    {activePlayers.map((player) => (
+                      <span key={player.id}>{player.name}</span>
+                    ))}
+                  </div>
+                )}
+                <form className="add-player-prominent" onSubmit={addPlayer}>
+                  <input
+                    required
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    placeholder="Prénom du joueur"
+                    maxLength={40}
+                    aria-label="Prénom du joueur"
+                  />
+                  <button type="submit">
+                    <UserPlus size={18} />
+                    Ajouter un joueur
+                  </button>
+                </form>
+              </div>
+            )}
+            {upcomingSessions.length === 0 ? (
+              activePlayers.length >= 4 && (
+                <div className="empty-state">
+                  {canRecalculate
+                    ? 'Les joueurs sont prêts. Créez le planning.'
+                    : 'Les joueurs sont prêts. Seul l’administrateur peut créer le planning.'}
+                </div>
+              )
+            ) : (
           <div className="schedule-grid">
-            {upcomingSessions.map((session, index) => {
-              const selected = session.session_players
+            {upcomingSessions.map((session) => {
+              const selected = (session.session_players || [])
                 .map(({ player_id, locked }) => {
                   const player = playerMap.get(player_id)
                   return player ? { ...player, locked: Boolean(locked) } : null
@@ -693,50 +910,75 @@ function GroupPage({ groupId, groupToken }) {
                   !selectedIds.has(player.id) && !availableIds.has(player.id),
               )
 
+              const classicIndex = upcomingSessions
+                .filter((item) => !item.manual)
+                .findIndex((item) => item.id === session.id)
+              const sessionLabel = session.manual
+                ? 'Créneau ajouté'
+                : classicIndex === 0
+                  ? 'Cette semaine'
+                  : `Semaine ${classicIndex + 1}`
+
               return (
                 <article
-                  className={`session-card ${index === 0 ? 'featured' : ''}`}
+                  className={`session-card${session.manual ? ' manual' : ''}${
+                    session.id === featuredSessionId ? ' featured' : ''
+                  }`}
                   key={session.id}
                 >
-                  <div className="session-number">
-                    {index === 0 ? 'Cette semaine' : `Semaine ${index + 1}`}
-                  </div>
+                  {session.manual && (
+                    <button
+                      type="button"
+                      className="remove-manual-session"
+                      onClick={() => removeManualSession(session)}
+                      title="Retirer ce créneau"
+                      aria-label={`Retirer le créneau du ${formatDate(session.played_on)}`}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                  <div className="session-number">{sessionLabel}</div>
                   <h3>{formatDate(session.played_on)}</h3>
                   <div className="player-list">
                     {selected.map((player) => (
-                      <div className="scheduled-player" key={player.id}>
+                      <div
+                        className={`scheduled-player${player.locked ? ' confirmed' : ''}`}
+                        key={player.id}
+                      >
                         <span className="avatar">
                           {player.name.slice(0, 1).toUpperCase()}
                         </span>
                         <span>{player.name}</span>
                         <div className="player-actions">
                           <button
-                            className={`lock-player ${player.locked ? 'locked' : ''}`}
+                            type="button"
+                            className={`confirm-player${player.locked ? ' confirmed' : ''}`}
                             onClick={() => togglePlayerLock(session.id, player)}
                             title={
                               player.locked
-                                ? `Déverrouiller ${player.name}`
-                                : `Verrouiller ${player.name} sur ce créneau`
+                                ? `Annuler la présence de ${player.name}`
+                                : `Valider la présence de ${player.name}`
                             }
                             aria-label={
                               player.locked
-                                ? `Déverrouiller ${player.name}`
-                                : `Verrouiller ${player.name}`
+                                ? `Annuler la présence de ${player.name}`
+                                : `Valider la présence de ${player.name}`
                             }
                             aria-pressed={player.locked}
                           >
-                            {player.locked ? <Lock size={15} /> : <LockOpen size={15} />}
+                            <Check size={15} strokeWidth={player.locked ? 3 : 2} />
                           </button>
                           <button
-                          className="remove-from-session"
-                          onClick={() =>
-                            removeSelectedPlayer(session.id, player)
-                          }
-                          title={`Retirer ${player.name} de cette partie`}
-                          aria-label={`Retirer ${player.name}`}
-                        >
-                          <X size={15} />
-                        </button>
+                            type="button"
+                            className="remove-from-session"
+                            onClick={() =>
+                              removeSelectedPlayer(session.id, player)
+                            }
+                            title={`Retirer ${player.name} de cette partie`}
+                            aria-label={`Retirer ${player.name}`}
+                          >
+                            <X size={15} />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -821,13 +1063,15 @@ function GroupPage({ groupId, groupToken }) {
                     )}
                   </div>
                   <div className="session-footer">
-                    <Clock3 size={15} /> {meetingTime.replace(':', 'h')}
+                    <Clock3 size={15} /> {formatClock(session.starts_at)}
                     <span>{selected.length}/4 joueurs</span>
                   </div>
                 </article>
               )
             })}
           </div>
+            )}
+          </>
         )}
       </section>
 
@@ -993,8 +1237,8 @@ function GroupPage({ groupId, groupToken }) {
               <Users size={19} />
               <p>
                 Le planning choisit en priorité ceux qui ont le moins joué, puis
-                ceux dont la dernière partie est la plus ancienne. Un joueur
-                verrouillé reste sur son créneau lors des prochains recalculs.
+                ceux dont la dernière partie est la plus ancienne. Une présence
+                validée reste sur son créneau lors des prochains recalculs.
               </p>
             </div>
           </aside>
