@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, LogOut, ShieldCheck, Trash2 } from 'lucide-react'
-import { createAdminClient, isConfigured } from './supabase'
+import { ADMIN_SESSION_KEY, createAdminClient, isConfigured } from './supabase'
 import { DAYS, FREQUENCIES, SPORTS } from './Welcome'
 
 const formatCreatedAt = (value) =>
@@ -10,26 +10,42 @@ const formatCreatedAt = (value) =>
     year: 'numeric',
   }).format(new Date(value))
 
-export default function Admin({ adminToken }) {
+function rememberAdminEntry() {
+  const params = new URLSearchParams(window.location.search)
+  if (!params.get('admin')) return sessionStorage.getItem(ADMIN_SESSION_KEY) || ''
+  window.history.replaceState({}, '', `${window.location.pathname}?admin`)
+  return sessionStorage.getItem(ADMIN_SESSION_KEY) || ''
+}
+
+export default function Admin() {
+  const [adminToken, setAdminToken] = useState(rememberAdminEntry)
+  const [login, setLogin] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const client = useMemo(() => createAdminClient(adminToken), [adminToken])
   const [groups, setGroups] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(Boolean(adminToken) && isConfigured)
   const [authorized, setAuthorized] = useState(false)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState('')
 
   useEffect(() => {
-    async function loadGroups() {
-      if (!isConfigured) {
-        setError("L'espace administrateur nécessite Supabase.")
-        setLoading(false)
-        return
-      }
+    if (!isConfigured || !adminToken) {
+      setAuthorized(false)
+      setLoading(false)
+      return undefined
+    }
 
+    let cancelled = false
+    async function loadGroups() {
       const { data: isAdmin, error: authError } =
         await client.rpc('request_is_admin')
+      if (cancelled) return
       if (authError || !isAdmin) {
-        setError('Ce lien administrateur est invalide.')
+        sessionStorage.removeItem(ADMIN_SESSION_KEY)
+        setAdminToken('')
+        setAuthorized(false)
+        setError('')
         setLoading(false)
         return
       }
@@ -40,13 +56,46 @@ export default function Admin({ adminToken }) {
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (groupsError) setError(groupsError.message)
-      else setGroups(data)
-      setLoading(false)
+      if (!cancelled) {
+        if (groupsError) setError(groupsError.message)
+        else setGroups(data)
+        setLoading(false)
+      }
     }
 
     loadGroups()
-  }, [client])
+    return () => {
+      cancelled = true
+    }
+  }, [adminToken, client])
+
+  async function signIn(event) {
+    event.preventDefault()
+    setSubmitting(true)
+    setError('')
+    const { data, error: loginError } = await createAdminClient().rpc(
+      'admin_login',
+      { p_login: login.trim(), p_password: password },
+    )
+    if (loginError) setError(loginError.message)
+    else if (!data) setError('Identifiant ou mot de passe incorrect.')
+    else {
+      sessionStorage.setItem(ADMIN_SESSION_KEY, data)
+      setPassword('')
+      setLoading(true)
+      setAdminToken(data)
+    }
+    setSubmitting(false)
+  }
+
+  function signOut() {
+    sessionStorage.removeItem(ADMIN_SESSION_KEY)
+    setAdminToken('')
+    setAuthorized(false)
+    setGroups([])
+    setPassword('')
+    window.location.assign('/')
+  }
 
   async function deleteGroup(group) {
     const confirmed = window.confirm(
@@ -66,17 +115,68 @@ export default function Admin({ adminToken }) {
     setDeletingId('')
   }
 
+  if (!isConfigured) {
+    return (
+      <main className="link-state">
+        <span className="admin-mark"><ShieldCheck size={28} /></span>
+        <h1>Administration</h1>
+        <p>L’espace administrateur nécessite Supabase.</p>
+        <a href="/">Retour à l’accueil</a>
+      </main>
+    )
+  }
+
   if (loading) {
     return <main className="link-state"><h1>Ouverture de l’administration…</h1></main>
   }
 
   if (!authorized) {
     return (
-      <main className="link-state">
-        <span className="admin-mark"><ShieldCheck size={28} /></span>
-        <h1>Accès refusé</h1>
-        <p>{error}</p>
-        <a href="/">Retour à l’accueil</a>
+      <main className="admin-page">
+        <header className="admin-header">
+          <div className="brand">
+            <span className="admin-mark"><ShieldCheck size={20} /></span>
+            <span>Administration</span>
+          </div>
+          <a className="icon-button" href="/">
+            <LogOut size={17} /> Quitter
+          </a>
+        </header>
+        <section className="admin-content">
+          <form className="admin-login" onSubmit={signIn}>
+            <div>
+              <p className="eyebrow">Accès réservé</p>
+              <h1>Connexion</h1>
+            </div>
+            <p>
+              L’identifiant et le mot de passe sont demandés avant d’afficher
+              ou de supprimer les groupes.
+            </p>
+            {error && <div className="form-error">{error}</div>}
+            <label>
+              Identifiant
+              <input
+                required
+                autoComplete="username"
+                value={login}
+                onChange={(event) => setLogin(event.target.value)}
+              />
+            </label>
+            <label>
+              Mot de passe
+              <input
+                required
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            <button className="create-group-button" disabled={submitting}>
+              {submitting ? 'Connexion…' : 'Se connecter'}
+            </button>
+          </form>
+        </section>
       </main>
     )
   }
@@ -88,9 +188,9 @@ export default function Admin({ adminToken }) {
           <span className="admin-mark"><ShieldCheck size={20} /></span>
           <span>Administration</span>
         </div>
-        <a className="icon-button" href="/">
-          <LogOut size={17} /> Quitter
-        </a>
+        <button className="icon-button" onClick={signOut}>
+          <LogOut size={17} /> Se déconnecter
+        </button>
       </header>
 
       <section className="admin-content">

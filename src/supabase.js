@@ -14,6 +14,7 @@ try {
 export const isConfigured = Boolean(url && key && !configError)
 
 export const ADMIN_TOKEN_KEY = 'pilota-admin-token'
+export const ADMIN_SESSION_KEY = 'pilota-admin-session'
 
 export const createGroupClient = (groupToken = '', adminToken = '') => {
   if (!isConfigured) return null

@@ -1415,14 +1415,13 @@ function GroupPage({ groupId, groupToken }) {
 
 function App() {
   const params = new URLSearchParams(window.location.search)
-  const adminToken = params.get('admin')
   const groupId = params.get('group')
   const groupToken = params.get('key')
 
   if (groupId && groupToken) {
     return <GroupPage groupId={groupId} groupToken={groupToken} />
   }
-  if (adminToken) return <Admin adminToken={adminToken} />
+  if (params.has('admin')) return <Admin />
   return <Welcome />
 }
 
