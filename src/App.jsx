@@ -111,7 +111,7 @@ function makeDemoSessions(
           lastPlayed.get(a.id) - lastPlayed.get(b.id) ||
           a.created_at.localeCompare(b.created_at),
       )
-      .slice(0, Math.max(0, 4 - lockedEntries.length))
+      .slice(0, Math.max(0, 4 - lockedEntries.length - (previous?.session_guests || []).length))
     const roster = [
       ...lockedEntries.map((entry) => ({
         player_id: entry.player_id,
@@ -129,6 +129,7 @@ function makeDemoSessions(
       id: previous?.id || `session-${week}`,
       played_on: playedOn,
       session_players: roster,
+      session_guests: previous?.session_guests || [],
       session_availability: (previous?.session_availability || []).filter(
         (entry) =>
           activeIds.has(entry.player_id) &&
@@ -295,6 +296,7 @@ function GroupPage({ groupId, groupToken }) {
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [newName, setNewName] = useState('')
   const [availabilityChoices, setAvailabilityChoices] = useState({})
+  const [guestNames, setGuestNames] = useState({})
 
   useEffect(() => {
     if (!isConfigured || !adminToken) return undefined
@@ -354,7 +356,7 @@ function GroupPage({ groupId, groupToken }) {
       supabase
         .from('sessions')
         .select(
-          'id, played_on, manual, starts_at, session_players(player_id, locked), session_availability(player_id)',
+          'id, played_on, manual, starts_at, session_players(player_id, locked), session_availability(player_id), session_guests(id, name)',
         )
         .eq('group_id', groupId)
         .order('played_on'),
@@ -567,6 +569,7 @@ function GroupPage({ groupId, groupToken }) {
             starts_at: startsAt,
             manual: true,
             session_players: [],
+            session_guests: [],
             session_availability: [],
           },
         ].sort((left, right) => left.played_on.localeCompare(right.played_on)),
@@ -701,6 +704,84 @@ function GroupPage({ groupId, groupToken }) {
       .delete()
       .eq('session_id', sessionId)
       .eq('player_id', player.id)
+    if (deleteError) setError(deleteError.message)
+    else await loadData()
+  }
+
+  async function addGuest(event, session) {
+    event.preventDefault()
+    const name = (guestNames[session.id] || '').trim()
+    if (!name) return
+    const guests = session.session_guests || []
+    const filled = (session.session_players || []).length + guests.length
+    const normalized = name.toLocaleLowerCase('fr')
+    if (filled >= 4) {
+      setError('Cette partie compte déjà quatre joueurs.')
+      return
+    }
+    if (
+      guests.some(
+        (guest) => guest.name.trim().toLocaleLowerCase('fr') === normalized,
+      )
+    ) {
+      setError('Cet invité est déjà sur ce créneau.')
+      return
+    }
+    if (
+      activePlayers.some(
+        (player) => player.name.trim().toLocaleLowerCase('fr') === normalized,
+      )
+    ) {
+      setError('Cette personne fait déjà partie du groupe.')
+      return
+    }
+
+    setError('')
+    if (!isConfigured) {
+      updateDemoSession(session.id, (item) => ({
+        ...item,
+        session_guests: [
+          ...(item.session_guests || []),
+          { id: `guest-${crypto.randomUUID()}`, name },
+        ],
+      }))
+      setGuestNames((current) => ({ ...current, [session.id]: '' }))
+      return
+    }
+
+    const { error: insertError } = await supabase
+      .from('session_guests')
+      .insert({ session_id: session.id, name })
+    if (insertError) {
+      setError(
+        insertError.code === '23505'
+          ? 'Cet invité est déjà sur ce créneau.'
+          : insertError.message,
+      )
+    } else {
+      setGuestNames((current) => ({ ...current, [session.id]: '' }))
+      await loadData()
+    }
+  }
+
+  async function removeGuest(sessionId, guest) {
+    if (!window.confirm(`Retirer l'invité ${guest.name} de ce créneau ?`)) return
+    setError('')
+
+    if (!isConfigured) {
+      updateDemoSession(sessionId, (item) => ({
+        ...item,
+        session_guests: (item.session_guests || []).filter(
+          (entry) => entry.id !== guest.id,
+        ),
+      }))
+      return
+    }
+
+    const { error: deleteError } = await supabase
+      .from('session_guests')
+      .delete()
+      .eq('id', guest.id)
     if (deleteError) setError(deleteError.message)
     else await loadData()
   }
@@ -926,6 +1007,8 @@ function GroupPage({ groupId, groupToken }) {
                   return player ? { ...player, locked: Boolean(locked) } : null
                 })
                 .filter(Boolean)
+              const guests = session.session_guests || []
+              const filled = selected.length + guests.length
               const selectedIds = new Set(selected.map((player) => player.id))
               const available = (session.session_availability || [])
                 .map(({ player_id }) => playerMap.get(player_id))
@@ -1011,13 +1094,58 @@ function GroupPage({ groupId, groupToken }) {
                         </div>
                       </div>
                     ))}
-                    {selected.length < 4 && (
+                    {guests.map((guest) => (
+                      <div className="scheduled-player guest" key={guest.id}>
+                        <span className="avatar">
+                          {guest.name.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span>{guest.name}</span>
+                        <span className="guest-tag">Invité</span>
+                        <div className="player-actions">
+                          <button
+                            type="button"
+                            className="remove-from-session"
+                            onClick={() => removeGuest(session.id, guest)}
+                            title={`Retirer l'invité ${guest.name}`}
+                            aria-label={`Retirer l'invité ${guest.name}`}
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {filled < 4 && (
                       <div className="open-slot">
                         <Plus size={16} />
-                        {4 - selected.length} place
-                        {4 - selected.length > 1 ? 's' : ''} libre
-                        {4 - selected.length > 1 ? 's' : ''}
+                        {4 - filled} place
+                        {4 - filled > 1 ? 's' : ''} libre
+                        {4 - filled > 1 ? 's' : ''}
                       </div>
+                    )}
+                    {filled < 4 && (
+                      <form
+                        className="guest-form"
+                        onSubmit={(event) => addGuest(event, session)}
+                      >
+                        <input
+                          value={guestNames[session.id] || ''}
+                          onChange={(event) =>
+                            setGuestNames((current) => ({
+                              ...current,
+                              [session.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Invité externe"
+                          maxLength={40}
+                          aria-label="Nom de l'invité externe"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!guestNames[session.id]?.trim()}
+                        >
+                          Inviter
+                        </button>
+                      </form>
                     )}
                   </div>
 
@@ -1031,7 +1159,7 @@ function GroupPage({ groupId, groupToken }) {
                         {available.map((player) => (
                           <span className="availability-chip" key={player.id}>
                             {player.name}
-                            {selected.length < 4 && (
+                            {filled < 4 && (
                               <button
                                 onClick={() =>
                                   promoteAvailablePlayer(session.id, player.id)
@@ -1093,7 +1221,7 @@ function GroupPage({ groupId, groupToken }) {
                   </div>
                   <div className="session-footer">
                     <Clock3 size={15} /> {formatClock(session.starts_at)}
-                    <span>{selected.length}/4 joueurs</span>
+                    <span>{filled}/4 joueurs</span>
                   </div>
                 </article>
               )

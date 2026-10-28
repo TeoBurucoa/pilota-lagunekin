@@ -601,6 +601,77 @@ h1 em {
   background: #f7e4df;
 }
 
+.scheduled-player.guest {
+  margin-inline: -6px;
+  padding: 4px 6px;
+  color: #5c3d86;
+  background: #efe4fb;
+  border-radius: 8px;
+}
+
+.scheduled-player.guest .avatar {
+  color: #5c3d86;
+  background: #ddc8f3;
+}
+
+.guest-tag {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  color: #5c3d86;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.featured .scheduled-player.guest {
+  color: #f6edff;
+  background: rgba(198, 160, 242, 0.38);
+}
+
+.featured .scheduled-player.guest .avatar {
+  color: #f6edff;
+  background: rgba(214, 184, 246, 0.35);
+}
+
+.featured .guest-tag {
+  color: #f6edff;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.guest-form {
+  display: flex;
+  gap: 6px;
+}
+
+.guest-form input {
+  min-width: 0;
+  flex: 1;
+  padding: 8px 9px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #c9b6e4;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.guest-form button {
+  padding: 0 10px;
+  color: white;
+  background: #6d4e9c;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guest-form button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .open-slot {
   display: flex;
   align-items: center;
@@ -1621,12 +1692,15 @@ footer {
     height: 28px;
   }
 
-  .availability-form {
+  .availability-form,
+  .guest-form {
     flex-direction: column;
   }
 
   .availability-form select,
-  .availability-form > button {
+  .availability-form > button,
+  .guest-form input,
+  .guest-form button {
     min-height: 44px;
     font-size: 16px;
   }
