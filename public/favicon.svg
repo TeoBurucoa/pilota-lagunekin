@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <radialGradient id="leather" cx="34%" cy="30%" r="72%">
+      <stop offset="0%" stop-color="#fffaf3" />
+      <stop offset="52%" stop-color="#f3e6cf" />
+      <stop offset="100%" stop-color="#c9a56b" />
+    </radialGradient>
+  </defs>
+  <circle cx="16" cy="16" r="15" fill="url(#leather)" />
+  <path
+    d="M10.2 4.8C7.2 8.4 6.4 13 7.6 17.6c1.2 4.6 4 8.2 7.4 10"
+    fill="none"
+    stroke="#4a3424"
+    stroke-width="1.15"
+    stroke-linecap="round"
+  />
+  <path
+    d="M21.8 4.8c3 3.6 3.8 8.2 2.6 12.8-1.2 4.6-4 8.2-7.4 10"
+    fill="none"
+    stroke="#4a3424"
+    stroke-width="1.15"
+    stroke-linecap="round"
+  />
+  <g stroke="#4a3424" stroke-width="0.85" stroke-linecap="round">
+    <path d="M8.7 7.6l2.1.5" />
+    <path d="M7.6 11.2l2.2.2" />
+    <path d="M7.4 15l2.2-.2" />
+    <path d="M8.2 18.8l2.1-.7" />
+    <path d="M10 22.2l1.8-1.1" />
+    <path d="M23.3 7.6l-2.1.5" />
+    <path d="M24.4 11.2l-2.2.2" />
+    <path d="M24.6 15l-2.2-.2" />
+    <path d="M23.8 18.8l-2.1-.7" />
+    <path d="M22 22.2l-1.8-1.1" />
+  </g>
+</svg>
