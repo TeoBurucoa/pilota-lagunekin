@@ -672,21 +672,78 @@ h1 em {
   opacity: 0.45;
 }
 
+.open-slot-block {
+  display: grid;
+  gap: 8px;
+}
+
 .open-slot {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 38px;
-  padding: 0 10px;
+  padding: 0 6px 0 10px;
   color: #8a958d;
   border: 1px dashed #c9cec6;
   border-radius: 7px;
   font-size: 13px;
 }
 
+.fill-slot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  color: var(--green);
+  background: white;
+  border: 1px solid #c9cec6;
+  border-radius: 50%;
+}
+
+.fill-slot-menu {
+  display: grid;
+  overflow: hidden;
+  background: white;
+  border: 1px solid #cfd4cc;
+  border-radius: 8px;
+}
+
+.fill-slot-menu > button {
+  padding: 9px 12px;
+  color: var(--ink);
+  background: white;
+  border: 0;
+  border-bottom: 1px solid #e6e7e0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.fill-slot-menu > button:last-child {
+  border-bottom: 0;
+}
+
+.fill-slot-menu > button:hover,
+.fill-slot-menu > button.selected {
+  color: var(--green);
+  background: var(--green-light);
+}
+
+.fill-slot-menu .guest-form {
+  padding: 8px;
+  border-top: 1px solid #e6e7e0;
+}
+
 .featured .open-slot {
   color: #b9c9c0;
   border-color: rgba(255, 255, 255, 0.25);
+}
+
+.featured .fill-slot {
+  color: white;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .avatar {
@@ -1744,10 +1801,16 @@ footer {
 
   .availability-form select,
   .availability-form > button,
+  .fill-slot-menu > button,
   .guest-form input,
   .guest-form button {
     min-height: 44px;
     font-size: 16px;
+  }
+
+  .fill-slot {
+    width: 40px;
+    height: 40px;
   }
 
   .demo-banner,

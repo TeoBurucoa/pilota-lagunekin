@@ -297,6 +297,8 @@ function GroupPage({ groupId, groupToken }) {
   const [newName, setNewName] = useState('')
   const [availabilityChoices, setAvailabilityChoices] = useState({})
   const [guestNames, setGuestNames] = useState({})
+  const [slotMenuId, setSlotMenuId] = useState('')
+  const [slotPick, setSlotPick] = useState('')
 
   useEffect(() => {
     if (!isConfigured || !adminToken) return undefined
@@ -746,6 +748,8 @@ function GroupPage({ groupId, groupToken }) {
         ],
       }))
       setGuestNames((current) => ({ ...current, [session.id]: '' }))
+      setSlotMenuId('')
+      setSlotPick('')
       return
     }
 
@@ -760,6 +764,8 @@ function GroupPage({ groupId, groupToken }) {
       )
     } else {
       setGuestNames((current) => ({ ...current, [session.id]: '' }))
+      setSlotMenuId('')
+      setSlotPick('')
       await loadData()
     }
   }
@@ -1115,37 +1121,83 @@ function GroupPage({ groupId, groupToken }) {
                       </div>
                     ))}
                     {filled < 4 && (
-                      <div className="open-slot">
-                        <Plus size={16} />
-                        {4 - filled} place
-                        {4 - filled > 1 ? 's' : ''} libre
-                        {4 - filled > 1 ? 's' : ''}
+                      <div className="open-slot-block">
+                        <div className="open-slot">
+                          <span>
+                            {4 - filled} place
+                            {4 - filled > 1 ? 's' : ''} libre
+                            {4 - filled > 1 ? 's' : ''}
+                          </span>
+                          <button
+                            type="button"
+                            className="fill-slot"
+                            aria-expanded={slotMenuId === session.id}
+                            aria-label="Ajouter quelqu'un sur cette place"
+                            onClick={() => {
+                              setSlotPick('')
+                              setSlotMenuId((current) =>
+                                current === session.id ? '' : session.id,
+                              )
+                            }}
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                        {slotMenuId === session.id && (
+                          <div className="fill-slot-menu" role="menu">
+                            {activePlayers
+                              .filter((player) => !selectedIds.has(player.id))
+                              .map((player) => (
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  key={player.id}
+                                  onClick={() => {
+                                    promoteAvailablePlayer(session.id, player.id)
+                                    setSlotMenuId('')
+                                    setSlotPick('')
+                                  }}
+                                >
+                                  {player.name}
+                                </button>
+                              ))}
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className={slotPick === 'guest' ? 'selected' : ''}
+                              onClick={() => setSlotPick('guest')}
+                            >
+                              Invité
+                            </button>
+                            {slotPick === 'guest' && (
+                              <form
+                                className="guest-form"
+                                onSubmit={(event) => addGuest(event, session)}
+                              >
+                                <input
+                                  value={guestNames[session.id] || ''}
+                                  onChange={(event) =>
+                                    setGuestNames((current) => ({
+                                      ...current,
+                                      [session.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Nom de l'invité"
+                                  maxLength={40}
+                                  aria-label="Nom de l'invité"
+                                  autoFocus
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={!guestNames[session.id]?.trim()}
+                                >
+                                  Ajouter
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {filled < 4 && (
-                      <form
-                        className="guest-form"
-                        onSubmit={(event) => addGuest(event, session)}
-                      >
-                        <input
-                          value={guestNames[session.id] || ''}
-                          onChange={(event) =>
-                            setGuestNames((current) => ({
-                              ...current,
-                              [session.id]: event.target.value,
-                            }))
-                          }
-                          placeholder="Invité externe"
-                          maxLength={40}
-                          aria-label="Nom de l'invité externe"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!guestNames[session.id]?.trim()}
-                        >
-                          Inviter
-                        </button>
-                      </form>
                     )}
                   </div>
 
