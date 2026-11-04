@@ -23,14 +23,20 @@ fictifs. Les modifications ne sont alors pas partagées.
    - `supabase/add-player-locks.sql`
    - `supabase/add-group-features.sql`
    - `supabase/add-sport.sql`
+   - `supabase/add-manual-sessions.sql`
+   - `supabase/admin-only-group-settings.sql`
+   - `supabase/add-session-guests.sql`
+   - `supabase/admin-login.sql`
+   - `supabase/add-football-and-on-demand.sql`
 3. Copier `.env.example` vers `.env`.
 4. Dans les réglages API du projet Supabase, copier l'URL et la clé anonyme
    dans `.env`.
 5. Relancer le serveur.
 
 La page d'accueil permet de créer plusieurs groupes indépendants. Chaque groupe
-choisit son sport (pelote ou padel), son nom, son jour, son heure, sa fréquence
-et son message principal. Les groupes de padel utilisent un thème bleu et blanc.
+choisit son sport (pelote, padel ou football), son nom, son jour, son heure, sa
+fréquence et son message principal. Il peut aussi utiliser uniquement des
+créneaux à la demande. Les groupes de padel et de football ont chacun leur thème.
 Les fréquences proposées sont hebdomadaire, toutes les deux semaines et toutes
 les quatre semaines. Un lien privé contenant une clé secrète est ensuite créé :
 il faut conserver et partager ce lien complet avec les membres concernés.
@@ -50,8 +56,10 @@ un remplaçant disponible peut être ajouté en un clic.
 Si l'ancienne version est déjà installée, exécuter d'abord
 `supabase/add-availability.sql` si nécessaire, puis
 `supabase/multi-groups.sql`, puis `supabase/admin-space.sql`,
-`supabase/add-player-locks.sql`, `supabase/add-group-features.sql` et
-`supabase/add-sport.sql`. Les
+`supabase/add-player-locks.sql`, `supabase/add-group-features.sql`,
+`supabase/add-sport.sql`, `supabase/add-manual-sessions.sql`,
+`supabase/admin-only-group-settings.sql`, `supabase/add-session-guests.sql`,
+`supabase/admin-login.sql` et `supabase/add-football-and-on-demand.sql`. Les
 anciennes données sont conservées dans un premier groupe ; la dernière requête
 de `multi-groups.sql` affiche son chemin privé.
 

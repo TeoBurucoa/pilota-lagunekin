@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="football-light" cx="34%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="60%" stop-color="#f4f1e6" />
+      <stop offset="100%" stop-color="#d5cebc" />
+    </radialGradient>
+    <clipPath id="football-clip">
+      <circle cx="32" cy="32" r="30" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#football-clip)">
+    <circle cx="32" cy="32" r="30" fill="url(#football-light)" />
+    <polygon points="32,21.8 41.7,28.85 38,40.25 26,40.25 22.3,28.85" fill="#171717" />
+    <polygon points="32,12 18.69,2.33 23.77,-13.33 40.23,-13.33 45.31,2.33" fill="#171717" />
+    <polygon points="51.03,25.82 56.11,10.16 72.57,10.16 77.65,25.82 64.34,35.49" fill="#171717" />
+    <polygon points="43.75,48.18 60.21,48.18 65.29,63.84 51.98,73.51 38.67,63.84" fill="#171717" />
+    <polygon points="20.25,48.18 25.33,63.84 12.02,73.51 -1.29,63.84 3.79,48.18" fill="#171717" />
+    <polygon points="12.97,25.82 -0.34,35.49 -13.65,25.82 -8.57,10.16 7.89,10.16" fill="#171717" />
+  </g>
+  <circle cx="32" cy="32" r="30" fill="none" stroke="#171717" stroke-width="1.8" />
+</svg>

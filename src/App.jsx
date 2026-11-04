@@ -19,7 +19,7 @@ import {
   createGroupClient,
   isConfigured,
 } from './supabase'
-import Welcome, { DAYS, FREQUENCIES, SPORTS } from './Welcome'
+import Welcome, { DAYS, FREQUENCIES, SPORTS, useSportFavicon } from './Welcome'
 import Admin from './Admin'
 
 const dateKey = (date) => {
@@ -62,6 +62,7 @@ function makeDemoSessions(
   meetingTime = '18:00:00',
   frequencyWeeks = 1,
   createdAt,
+  maxPlayers = 4,
 ) {
   const counts = new Map(players.map((player) => [player.id, 0]))
   const lastPlayed = new Map(players.map((player) => [player.id, -1]))
@@ -111,7 +112,15 @@ function makeDemoSessions(
           lastPlayed.get(a.id) - lastPlayed.get(b.id) ||
           a.created_at.localeCompare(b.created_at),
       )
-      .slice(0, Math.max(0, 4 - lockedEntries.length - (previous?.session_guests || []).length))
+      .slice(
+        0,
+        Math.max(
+          0,
+          maxPlayers -
+            lockedEntries.length -
+            (previous?.session_guests || []).length,
+        ),
+      )
     const roster = [
       ...lockedEntries.map((entry) => ({
         player_id: entry.player_id,
@@ -238,7 +247,11 @@ function CourtBall() {
     }
   }
 
-  return <span ref={ballRef} className="ball" onPointerDown={changeDirection} />
+  return (
+    <span ref={ballRef} className="ball" onPointerDown={changeDirection}>
+      <span className="ball-surface" />
+    </span>
+  )
 }
 
 function HeroMessage({ message = '' }) {
@@ -316,6 +329,10 @@ function GroupPage({ groupId, groupToken }) {
   }, [adminToken])
 
   const meetingDayName = DAYS[group?.meeting_day ?? 4]
+  const maxPlayers =
+    SPORTS.find((sport) => sport.value === group?.sport)?.maxPlayers || 4
+  const hasRecurringSchedule = group?.recurring !== false
+  useSportFavicon(group?.sport || 'pelote')
 
   const activePlayers = players.filter((player) => player.active)
   const playerMap = useMemo(
@@ -415,12 +432,13 @@ function GroupPage({ groupId, groupToken }) {
       setSessions(
         makeDemoSessions(
           nextPlayers,
-          8,
+          hasRecurringSchedule ? 8 : 0,
           sessions,
           group.meeting_day,
           group.meeting_time,
           group.frequency_weeks || 1,
           group.created_at,
+          maxPlayers,
         ),
       )
       setNewName('')
@@ -455,6 +473,7 @@ function GroupPage({ groupId, groupToken }) {
       meeting_day: Number(group.meeting_day),
       meeting_time: group.meeting_time,
       frequency_weeks: Number(group.frequency_weeks || 1),
+      recurring: group.recurring !== false,
       sport: group.sport || 'pelote',
       hero_message: group.hero_message.trim(),
     }
@@ -489,12 +508,13 @@ function GroupPage({ groupId, groupToken }) {
       setSessions(
         makeDemoSessions(
           nextPlayers.filter((item) => item.active),
-          8,
+          hasRecurringSchedule ? 8 : 0,
           sessions,
           group.meeting_day,
           group.meeting_time,
           group.frequency_weeks || 1,
           group.created_at,
+          maxPlayers,
         ),
       )
       return
@@ -509,12 +529,18 @@ function GroupPage({ groupId, groupToken }) {
   }
 
   async function generateSchedule() {
+    if (!hasRecurringSchedule) {
+      setError('Ce groupe utilise uniquement des créneaux à la demande.')
+      return
+    }
     if (isConfigured && !isAdmin) {
       setError('Seul un administrateur peut recalculer le planning.')
       return
     }
-    if (activePlayers.length < 4) {
-      setError('Il faut au moins 4 joueurs actifs pour créer le planning.')
+    if (activePlayers.length < maxPlayers) {
+      setError(
+        `Il faut au moins ${maxPlayers} joueurs actifs pour créer le planning.`,
+      )
       return
     }
     if (!isConfigured) {
@@ -527,6 +553,7 @@ function GroupPage({ groupId, groupToken }) {
           group.meeting_time,
           group.frequency_weeks || 1,
           group.created_at,
+          maxPlayers,
         ),
       )
       return
@@ -717,8 +744,8 @@ function GroupPage({ groupId, groupToken }) {
     const guests = session.session_guests || []
     const filled = (session.session_players || []).length + guests.length
     const normalized = name.toLocaleLowerCase('fr')
-    if (filled >= 4) {
-      setError('Cette partie compte déjà quatre joueurs.')
+    if (filled >= maxPlayers) {
+      setError(`Cette partie compte déjà ${maxPlayers} joueurs.`)
       return
     }
     if (
@@ -831,7 +858,7 @@ function GroupPage({ groupId, groupToken }) {
   const featuredSessionId = upcomingSessions.find((session) => !session.manual)?.id
   const formatClock = (value) =>
     (value || group?.meeting_time || '18:00:00').slice(0, 5).replace(':', 'h')
-  const canRecalculate = isAdmin
+  const canRecalculate = isAdmin && hasRecurringSchedule
 
   async function copyGroupLink() {
     await navigator.clipboard.writeText(window.location.href)
@@ -875,7 +902,11 @@ function GroupPage({ groupId, groupToken }) {
           <HeroMessage message={group?.hero_message} />
           <div className="next-date">
             <CalendarDays size={20} />
-            {nextSession ? formatDate(nextSession.played_on) : 'Planning à créer'}
+            {nextSession
+              ? formatDate(nextSession.played_on)
+              : hasRecurringSchedule
+                ? 'Planning à créer'
+                : 'Aucun créneau prévu'}
             <span />
             <Clock3 size={20} />
             {formatClock(nextSession?.starts_at)}
@@ -886,7 +917,7 @@ function GroupPage({ groupId, groupToken }) {
           <div className="court-line horizontal" />
           <div className="court-line vertical" />
           <CourtBall />
-          <span>{group?.name}</span>
+          <span className="court-label">{group?.name}</span>
         </div>
       </section>
 
@@ -964,15 +995,17 @@ function GroupPage({ groupId, groupToken }) {
           <div className="empty-state">Chargement du planning…</div>
         ) : (
           <>
-            {activePlayers.length < 4 && (
+            {activePlayers.length < maxPlayers && (
               <div className="player-setup">
                 <p className="eyebrow">Pour commencer</p>
                 <h3>
                   {activePlayers.length === 0
                     ? 'Ajoutez les joueurs'
-                    : `${activePlayers.length} joueur${activePlayers.length > 1 ? 's' : ''} sur 4`}
+                    : `${activePlayers.length} joueur${activePlayers.length > 1 ? 's' : ''} sur ${maxPlayers}`}
                 </h3>
-                <p>Il faut quatre joueurs pour préparer le planning.</p>
+                <p>
+                  Il faut {maxPlayers} joueurs pour préparer un créneau complet.
+                </p>
                 {activePlayers.length > 0 && (
                   <div className="setup-roster">
                     {activePlayers.map((player) => (
@@ -997,9 +1030,12 @@ function GroupPage({ groupId, groupToken }) {
               </div>
             )}
             {upcomingSessions.length === 0 ? (
-              activePlayers.length >= 4 && (
+              (!hasRecurringSchedule ||
+                activePlayers.length >= maxPlayers) && (
                 <div className="empty-state">
-                  {canRecalculate
+                  {!hasRecurringSchedule
+                    ? 'Ajoutez votre premier créneau à la demande.'
+                    : canRecalculate
                     ? 'Les joueurs sont prêts. Créez le planning.'
                     : 'Les joueurs sont prêts. Seul l’administrateur peut créer le planning.'}
                 </div>
@@ -1120,13 +1156,13 @@ function GroupPage({ groupId, groupToken }) {
                         </div>
                       </div>
                     ))}
-                    {filled < 4 && (
+                    {filled < maxPlayers && (
                       <div className="open-slot-block">
                         <div className="open-slot">
                           <span>
-                            {4 - filled} place
-                            {4 - filled > 1 ? 's' : ''} libre
-                            {4 - filled > 1 ? 's' : ''}
+                            {maxPlayers - filled} place
+                            {maxPlayers - filled > 1 ? 's' : ''} libre
+                            {maxPlayers - filled > 1 ? 's' : ''}
                           </span>
                           <button
                             type="button"
@@ -1211,7 +1247,7 @@ function GroupPage({ groupId, groupToken }) {
                         {available.map((player) => (
                           <span className="availability-chip" key={player.id}>
                             {player.name}
-                            {filled < 4 && (
+                            {filled < maxPlayers && (
                               <button
                                 onClick={() =>
                                   promoteAvailablePlayer(session.id, player.id)
@@ -1273,7 +1309,7 @@ function GroupPage({ groupId, groupToken }) {
                   </div>
                   <div className="session-footer">
                     <Clock3 size={15} /> {formatClock(session.starts_at)}
-                    <span>{filled}/4 joueurs</span>
+                    <span>{filled}/{maxPlayers} joueurs</span>
                   </div>
                 </article>
               )
@@ -1285,8 +1321,16 @@ function GroupPage({ groupId, groupToken }) {
       </section>
 
       <footer>
-        <span>À {meetingDayName.toLowerCase()} !</span>
-        <span>Planning équilibré automatiquement</span>
+        <span>
+          {hasRecurringSchedule
+            ? `À ${meetingDayName.toLowerCase()} !`
+            : 'À la prochaine partie !'}
+        </span>
+        <span>
+          {hasRecurringSchedule
+            ? 'Planning équilibré automatiquement'
+            : 'Créneaux ajoutés à la demande'}
+        </span>
       </footer>
 
       {showPlayers && (
@@ -1345,49 +1389,29 @@ function GroupPage({ groupId, groupToken }) {
                   ))}
                 </select>
               </label>
-              <div className="form-row">
-                <label>
-                  Jour
-                  <select
-                    value={group.meeting_day}
-                    onChange={(event) =>
-                      setGroup((current) => ({
-                        ...current,
-                        meeting_day: Number(event.target.value),
-                      }))
-                    }
-                  >
-                    {DAYS.map((day, index) => (
-                      <option value={index} key={day}>{day}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Heure
-                  <input
-                    required
-                    type="time"
-                    value={group.meeting_time.slice(0, 5)}
-                    onChange={(event) =>
-                      setGroup((current) => ({
-                        ...current,
-                        meeting_time: `${event.target.value}:00`,
-                      }))
-                    }
-                  />
-                </label>
-              </div>
               <label>
                 Fréquence
                 <select
-                  value={group.frequency_weeks || 1}
+                  value={
+                    group.recurring === false
+                      ? 'none'
+                      : group.frequency_weeks || 1
+                  }
                   onChange={(event) =>
-                    setGroup((current) => ({
-                      ...current,
-                      frequency_weeks: Number(event.target.value),
-                    }))
+                    setGroup((current) => {
+                      const value = event.target.value
+                      return {
+                        ...current,
+                        recurring: value !== 'none',
+                        frequency_weeks:
+                          value === 'none'
+                            ? current.frequency_weeks || 1
+                            : Number(value),
+                      }
+                    })
                   }
                 >
+                  <option value="none">Pas de créneau récurrent</option>
                   {FREQUENCIES.map((frequency) => (
                     <option value={frequency.value} key={frequency.value}>
                       {frequency.label}
@@ -1395,6 +1419,40 @@ function GroupPage({ groupId, groupToken }) {
                   ))}
                 </select>
               </label>
+              {group.recurring !== false && (
+                <div className="form-row">
+                  <label>
+                    Jour
+                    <select
+                      value={group.meeting_day}
+                      onChange={(event) =>
+                        setGroup((current) => ({
+                          ...current,
+                          meeting_day: Number(event.target.value),
+                        }))
+                      }
+                    >
+                      {DAYS.map((day, index) => (
+                        <option value={index} key={day}>{day}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Heure
+                    <input
+                      required
+                      type="time"
+                      value={group.meeting_time.slice(0, 5)}
+                      onChange={(event) =>
+                        setGroup((current) => ({
+                          ...current,
+                          meeting_time: `${event.target.value}:00`,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              )}
               <label>
                 Message principal
                 <textarea

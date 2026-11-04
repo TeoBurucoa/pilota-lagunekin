@@ -226,14 +226,22 @@ export default function Admin() {
                       (sport) => sport.value === (group.sport || 'pelote'),
                     )?.label}
                   </span>
-                  <span>{DAYS[group.meeting_day]}</span>
-                  <span>{group.meeting_time.slice(0, 5).replace(':', 'h')}</span>
-                  <span>
-                    {FREQUENCIES.find(
-                      (frequency) =>
-                        frequency.value === (group.frequency_weeks || 1),
-                    )?.label}
-                  </span>
+                  {group.recurring === false ? (
+                    <span>Créneaux à la demande</span>
+                  ) : (
+                    <>
+                      <span>{DAYS[group.meeting_day]}</span>
+                      <span>
+                        {group.meeting_time.slice(0, 5).replace(':', 'h')}
+                      </span>
+                      <span>
+                        {FREQUENCIES.find(
+                          (frequency) =>
+                            frequency.value === (group.frequency_weeks || 1),
+                        )?.label}
+                      </span>
+                    </>
+                  )}
                 </div>
                 <div className="admin-card-actions">
                   <a

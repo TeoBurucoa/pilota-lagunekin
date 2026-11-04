@@ -16,6 +16,7 @@
   --court: var(--green);
   --court-shadow: #dce3d4;
   --surface: #fffdf7;
+  --welcome-glow: #e1ead9;
   --ball: var(--orange);
   --ball-pattern: radial-gradient(
     circle at 34% 30%,
@@ -35,6 +36,7 @@
   --court: #1d5fc4;
   --court-shadow: #d6e4f7;
   --surface: #ffffff;
+  --welcome-glow: #dce9fa;
   --ball: #d8f03a;
   --ball-pattern:
     radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.7) 0 9%, transparent 10%),
@@ -50,6 +52,22 @@
       rgba(255, 255, 255, 0.9) 55% 61%,
       transparent 62%
     );
+}
+
+.theme-football {
+  --green: #174f2b;
+  --green-light: #dcefdc;
+  --orange: #f2b134;
+  --cream: #f3f6ec;
+  --ink: #15351f;
+  --muted: #607064;
+  --line: #d4ddcf;
+  --court: #27833f;
+  --court-shadow: #d2e5d1;
+  --surface: #fffef9;
+  --welcome-glow: #d8ebd5;
+  --ball: #f7f5ea;
+  --ball-pattern: none;
 }
 
 .group-page {
@@ -246,14 +264,21 @@ h1 em {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--ball-pattern), var(--ball);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
   cursor: pointer;
   touch-action: manipulation;
   will-change: transform;
 }
 
-.court-card span {
+.court-card .ball-surface {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--ball-pattern), var(--ball);
+  border-radius: 50%;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
+}
+
+.court-card .court-label {
   position: absolute;
   right: 38px;
   bottom: 38px;
@@ -261,6 +286,46 @@ h1 em {
   font-family: 'DM Serif Display', serif;
   font-size: 30px;
   font-style: italic;
+}
+
+.theme-football .court-card {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.035) 0 12.5%,
+      transparent 12.5% 25%,
+      rgba(255, 255, 255, 0.035) 25% 37.5%,
+      transparent 37.5% 50%,
+      rgba(255, 255, 255, 0.035) 50% 62.5%,
+      transparent 62.5% 75%,
+      rgba(255, 255, 255, 0.035) 75% 87.5%,
+      transparent 87.5%
+    ),
+    var(--court);
+}
+
+.theme-football .court-card::after {
+  top: 50%;
+  left: 50%;
+  right: auto;
+  width: 72px;
+  height: 72px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.theme-football .court-line.vertical {
+  left: 50%;
+}
+
+.theme-football .court-line.horizontal {
+  display: none;
+}
+
+.theme-football .ball-surface {
+  background: url('/favicon-football.svg') center / cover no-repeat;
+  animation: football-spin 2.4s linear infinite;
 }
 
 .demo-banner,
@@ -910,9 +975,11 @@ footer {
 
 .welcome-page {
   min-height: 100vh;
+  color: var(--ink);
   background:
-    radial-gradient(circle at 12% 20%, #e1ead9 0, transparent 28%),
+    radial-gradient(circle at 12% 20%, var(--welcome-glow) 0, transparent 28%),
     var(--cream);
+  transition: color 0.25s ease, background-color 0.25s ease;
 }
 
 .welcome-header {
@@ -941,7 +1008,7 @@ footer {
 
 .welcome-intro {
   max-width: 600px;
-  color: #53665b;
+  color: var(--muted);
   font-size: 18px;
   line-height: 1.7;
 }
@@ -966,8 +1033,8 @@ footer {
   display: grid;
   gap: 20px;
   padding: 34px;
-  background: #fffdf8;
-  border: 1px solid #dfe1d7;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: 0 24px 70px rgba(25, 61, 47, 0.11);
 }
@@ -1009,7 +1076,7 @@ footer {
 
 .sport-picker {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 
@@ -1039,6 +1106,10 @@ footer {
   background: #1d5fc4;
 }
 
+.sport-football.selected {
+  background: #27833f;
+}
+
 .sport-ball {
   width: 16px;
   height: 16px;
@@ -1050,13 +1121,21 @@ footer {
 }
 
 .sport-padel .sport-ball {
-  background: #d8f03a;
-  box-shadow: inset 0 0 0 1px rgba(13, 59, 120, 0.25);
+  background: url('/favicon-padel.svg') center / cover no-repeat;
+}
+
+.sport-football .sport-ball {
+  background: url('/favicon-football.svg') center / cover no-repeat;
 }
 
 .sport-tag.sport-padel {
   color: #0d3b78;
   background: #dce9fa;
+}
+
+.sport-tag.sport-football {
+  color: #174f2b;
+  background: #dcefdc;
 }
 
 .theme-padel .session-card.manual {
@@ -1092,6 +1171,24 @@ footer {
 .theme-padel .fairness-note {
   color: #3e5574;
   background: #edf3fb;
+}
+
+.theme-football .schedule-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.theme-football .session-card {
+  border-color: #d4e4d1;
+}
+
+.theme-football .availability-chip {
+  color: #174f2b;
+  background: #e4f2e2;
+}
+
+.theme-football .fairness-note {
+  color: #31583a;
+  background: #e7f1e3;
 }
 
 .form-row {
@@ -1581,8 +1678,15 @@ footer {
   }
 }
 
+@keyframes football-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .spin {
+  .spin,
+  .theme-football .ball-surface {
     animation: none;
   }
 }
@@ -1719,7 +1823,7 @@ footer {
     box-shadow: 10px 10px 0 var(--court-shadow);
   }
 
-  .court-card span {
+  .court-card .court-label {
     right: 20px;
     bottom: 18px;
     font-size: 24px;
@@ -1769,6 +1873,10 @@ footer {
   }
 
   .schedule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-football .schedule-grid {
     grid-template-columns: 1fr;
   }
 

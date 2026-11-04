@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="padel-felt" cx="34%" cy="30%" r="74%">
+      <stop offset="0%" stop-color="#f7ff8a" />
+      <stop offset="55%" stop-color="#d6ee32" />
+      <stop offset="100%" stop-color="#8ea612" />
+    </radialGradient>
+    <clipPath id="padel-clip">
+      <circle cx="32" cy="32" r="30" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#padel-clip)">
+    <circle cx="32" cy="32" r="30" fill="url(#padel-felt)" />
+    <path
+      d="M22 2c10 12 10 48 0 60"
+      fill="none"
+      stroke="#fff"
+      stroke-width="3.4"
+      stroke-linecap="round"
+    />
+    <path
+      d="M42 2c-10 12-10 48 0 60"
+      fill="none"
+      stroke="#fff"
+      stroke-width="3.4"
+      stroke-linecap="round"
+    />
+  </g>
+  <circle cx="32" cy="32" r="30" fill="none" stroke="#73820f" stroke-width="1.5" />
+</svg>

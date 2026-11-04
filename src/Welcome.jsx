@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowRight, CalendarDays, Clock3, Users } from 'lucide-react'
 import { configError, createGroupClient, isConfigured } from './supabase'
 
@@ -13,9 +13,54 @@ export const DAYS = [
 ]
 
 export const SPORTS = [
-  { value: 'pelote', label: 'Pelote', message: 'Osteguna, Pilota eguna!' },
-  { value: 'padel', label: 'Padel', message: 'Prêts ? Padel time!' },
+  {
+    value: 'pelote',
+    label: 'Pelote',
+    message: 'Osteguna, Pilota eguna!',
+    eyebrow: 'Votre rendez-vous, simplement',
+    title: 'Créez votre groupe.',
+    emphasis: 'Jouez ensemble.',
+    intro:
+      'Le site pour les « Grande Jugadores ». Gestion des créneaux entre amis : rotation automatique, mais personnalisable. Jo Pilota !',
+    placeholder: 'Les copains du fronton',
+    maxPlayers: 4,
+  },
+  {
+    value: 'padel',
+    label: 'Padel',
+    message: 'Quatre sur le court.',
+    eyebrow: 'Votre partie, simplement',
+    title: 'Créez votre groupe.',
+    emphasis: 'Prenez le court.',
+    intro:
+      'Quatre joueurs, un créneau, une rotation claire. Chacun sait quand il joue, sans relancer toute la conversation.',
+    placeholder: 'Les copains du court',
+    maxPlayers: 4,
+  },
+  {
+    value: 'football',
+    label: 'Football',
+    message: 'Dix sur le terrain.',
+    eyebrow: 'Votre match, simplement',
+    title: 'Créez votre groupe.',
+    emphasis: 'Remplissez le terrain.',
+    intro:
+      'Dix places par créneau et une rotation équitable. L’équipe se complète toute seule, vous n’avez plus qu’à venir.',
+    placeholder: 'Les copains du dimanche',
+    maxPlayers: 10,
+  },
 ]
+
+export function useSportFavicon(sport = 'pelote') {
+  useEffect(() => {
+    const link = document.querySelector("link[rel='icon']")
+    if (!link) return undefined
+    link.href = sport === 'pelote' ? '/favicon.svg' : `/favicon-${sport}.svg`
+    return () => {
+      link.href = '/favicon.svg'
+    }
+  }, [sport])
+}
 
 export const FREQUENCIES = [
   { value: 1, label: 'Toutes les semaines' },
@@ -40,10 +85,13 @@ export default function Welcome() {
     meeting_day: 4,
     meeting_time: '18:00',
     frequency_weeks: 1,
+    recurring: true,
     hero_message: 'Osteguna, Pilota eguna!',
   })
   const [error, setError] = useState(configError)
   const [working, setWorking] = useState(false)
+  const sportCopy = SPORTS.find((sport) => sport.value === form.sport)
+  useSportFavicon(form.sport)
 
   const update = (field) => (event) =>
     setForm((current) => ({ ...current, [field]: event.target.value }))
@@ -80,6 +128,7 @@ export default function Welcome() {
       meeting_day: Number(form.meeting_day),
       meeting_time: `${form.meeting_time}:00`,
       frequency_weeks: Number(form.frequency_weeks),
+      recurring: form.recurring,
       hero_message: form.hero_message.trim(),
     }
 
@@ -101,7 +150,7 @@ export default function Welcome() {
   }
 
   return (
-    <main className="welcome-page">
+    <main className={`welcome-page theme-${form.sport}`}>
       <header className="welcome-header">
         <a className="brand" href="/">
           <span className="brand-mark">P</span>
@@ -111,13 +160,11 @@ export default function Welcome() {
 
       <section className="welcome-layout">
         <div className="welcome-copy">
-          <p className="eyebrow">Votre rendez-vous, simplement</p>
+          <p className="eyebrow">{sportCopy.eyebrow}</p>
           <h1>
-            Créez votre groupe. <em>Jouez ensemble.</em>
+            {sportCopy.title} <em>{sportCopy.emphasis}</em>
           </h1>
-          <p className="welcome-intro">
-            Le site pour les "Grande Jugadores". Gestion des créneaux réguliers entre amis : rotation automatique mais personnalisable. Jo Pilota!
-          </p>
+          <p className="welcome-intro">{sportCopy.intro}</p>
           <div className="welcome-points">
             <span><Users size={18} /> Votre espace privé</span>
             <span><CalendarDays size={18} /> Rotation automatique</span>
@@ -158,36 +205,27 @@ export default function Welcome() {
               maxLength={60}
               value={form.name}
               onChange={update('name')}
-              placeholder="Les copains du fronton"
+              placeholder={sportCopy.placeholder}
             />
           </label>
-
-          <div className="form-row">
-            <label>
-              Jour habituel
-              <select value={form.meeting_day} onChange={update('meeting_day')}>
-                {DAYS.map((day, index) => (
-                  <option value={index} key={day}>{day}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Heure
-              <input
-                required
-                type="time"
-                value={form.meeting_time}
-                onChange={update('meeting_time')}
-              />
-            </label>
-          </div>
 
           <label>
             Fréquence
             <select
-              value={form.frequency_weeks}
-              onChange={update('frequency_weeks')}
+              value={form.recurring ? form.frequency_weeks : 'none'}
+              onChange={(event) => {
+                const value = event.target.value
+                setForm((current) => ({
+                  ...current,
+                  recurring: value !== 'none',
+                  frequency_weeks:
+                    value === 'none'
+                      ? current.frequency_weeks
+                      : Number(value),
+                }))
+              }}
             >
+              <option value="none">Pas de créneau récurrent</option>
               {FREQUENCIES.map((frequency) => (
                 <option value={frequency.value} key={frequency.value}>
                   {frequency.label}
@@ -195,6 +233,28 @@ export default function Welcome() {
               ))}
             </select>
           </label>
+
+          {form.recurring && (
+            <div className="form-row">
+              <label>
+                Jour habituel
+                <select value={form.meeting_day} onChange={update('meeting_day')}>
+                  {DAYS.map((day, index) => (
+                    <option value={index} key={day}>{day}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Heure
+                <input
+                  required
+                  type="time"
+                  value={form.meeting_time}
+                  onChange={update('meeting_time')}
+                />
+              </label>
+            </div>
+          )}
 
           <label>
             Message principal
