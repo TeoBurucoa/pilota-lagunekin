@@ -78,6 +78,14 @@ export const getSessionPaymentSummary = (
   }
 }
 
+const validatedPlayerIds = (session, playerIds) =>
+  (session.session_players || [])
+    .filter(
+      (entry) =>
+        (entry.locked || entry.team) && playerIds.has(entry.player_id),
+    )
+    .map((entry) => entry.player_id)
+
 export const buildMonthlyBalances = ({
   month,
   sessions,
@@ -85,30 +93,58 @@ export const buildMonthlyBalances = ({
   payments,
   costCents,
   paidBy,
+  sessionCount,
+  today,
 }) => {
   const monthPrefix = month.slice(0, 7)
   const playerIds = new Set(players.map((player) => player.id))
-  const occurrences = sessions
-    .filter(
-      (session) =>
-        !session.manual && session.played_on.slice(0, 7) === monthPrefix,
-    )
-    .flatMap((session) =>
-      (session.session_players || [])
-        .filter((entry) => entry.locked || entry.team)
-        .map((entry) => entry.player_id)
-        .filter((playerId) => playerIds.has(playerId)),
-    )
-  const shares = splitCents(costCents, occurrences.length)
+  const plannedSessions = Math.max(0, Number(sessionCount) || 0)
+  const monthSessions = sessions.filter(
+    (session) =>
+      !session.manual && session.played_on.slice(0, 7) === monthPrefix,
+  )
+  const playedSessions = monthSessions
+    .filter((session) => session.played_on <= today)
+    .sort((left, right) => left.played_on.localeCompare(right.played_on))
+  const monthEnded = today.slice(0, 7) > monthPrefix
+  const everyoneValidated =
+    plannedSessions > 0 &&
+    monthSessions.length >= plannedSessions &&
+    monthSessions.every((session) => {
+      const roster = (session.session_players || []).filter((entry) =>
+        playerIds.has(entry.player_id),
+      )
+      return (
+        roster.length > 0 &&
+        roster.every((entry) => entry.locked || entry.team)
+      )
+    })
+  const finalAmount = monthEnded || everyoneValidated
   const dueByPlayer = new Map()
   const gamesByPlayer = new Map()
-  occurrences.forEach((playerId, index) => {
-    dueByPlayer.set(
-      playerId,
-      (dueByPlayer.get(playerId) || 0) + shares[index],
+  const addShares = (playerIdsForSession, amountCents) => {
+    const shares = splitCents(amountCents, playerIdsForSession.length)
+    playerIdsForSession.forEach((playerId, index) => {
+      dueByPlayer.set(playerId, (dueByPlayer.get(playerId) || 0) + shares[index])
+      gamesByPlayer.set(playerId, (gamesByPlayer.get(playerId) || 0) + 1)
+    })
+  }
+
+  if (finalAmount) {
+    const occurrences = playedSessions.flatMap((session) =>
+      validatedPlayerIds(session, playerIds),
     )
-    gamesByPlayer.set(playerId, (gamesByPlayer.get(playerId) || 0) + 1)
-  })
+    const shares = splitCents(costCents, occurrences.length)
+    occurrences.forEach((playerId, index) => {
+      dueByPlayer.set(playerId, (dueByPlayer.get(playerId) || 0) + shares[index])
+      gamesByPlayer.set(playerId, (gamesByPlayer.get(playerId) || 0) + 1)
+    })
+  } else {
+    const slotAmounts = splitCents(costCents, plannedSessions)
+    playedSessions.slice(0, plannedSessions).forEach((session, index) => {
+      addShares(validatedPlayerIds(session, playerIds), slotAmounts[index] || 0)
+    })
+  }
 
   const paidByPlayer = new Map()
   payments
@@ -120,7 +156,7 @@ export const buildMonthlyBalances = ({
       ),
     )
 
-  return players.map((player) => {
+  const rows = players.map((player) => {
     const dueCents = dueByPlayer.get(player.id) || 0
     const recordedCents = paidByPlayer.get(player.id) || 0
     const paidCents =
@@ -135,4 +171,6 @@ export const buildMonthlyBalances = ({
       remainingCents: Math.max(0, dueCents - paidCents),
     }
   })
+
+  return { rows, finalAmount }
 }

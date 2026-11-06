@@ -215,11 +215,17 @@ button {
   gap: 13px;
 }
 
+.celebration-heading > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
 .celebration-heading h2 {
   margin: 0;
   color: var(--green);
   font-size: 27px;
   line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .celebration-heading .eyebrow {
@@ -2642,13 +2648,17 @@ footer {
 
 @media (max-width: 560px) {
   .site-header {
+    align-items: center;
     height: auto;
     min-height: 60px;
     padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+    gap: 8px;
   }
 
   .brand {
+    flex: 1;
     gap: 8px;
+    min-width: 0;
     font-size: 15px;
   }
 
@@ -2659,7 +2669,13 @@ footer {
   }
 
   .header-actions {
+    flex: 0 0 auto;
     gap: 4px;
+  }
+
+  .header-actions .icon-button {
+    width: 42px;
+    padding: 8px;
   }
 
   .header-actions .icon-button span {
@@ -2728,24 +2744,38 @@ footer {
 
   .celebration-wrap {
     margin-top: 18px;
-    padding: 0 16px;
+    padding: 0 12px;
   }
 
   .celebration-panel {
-    padding: 20px 16px;
+    padding: 16px 12px;
   }
 
   .celebration-heading {
-    align-items: flex-start;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+
+  .celebration-icon {
+    width: 40px;
+    height: 40px;
   }
 
   .celebration-heading h2 {
-    font-size: 23px;
+    font-size: 22px;
   }
 
   .celebration-counts {
-    margin-left: 57px;
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .celebration-counts strong {
+    padding: 6px 8px;
+    font-size: 11px;
   }
 
   .celebration-date,
@@ -2756,10 +2786,20 @@ footer {
 
   .celebration-date {
     flex-wrap: wrap;
+    font-size: 13px;
+  }
+
+  .event-attendance {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .event-attendance button {
-    min-height: 40px;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 42px;
+    white-space: normal;
+    text-align: left;
   }
 
   h1 {

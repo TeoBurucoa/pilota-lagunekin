@@ -1441,14 +1441,17 @@ function GroupPage({ groupId, groupToken }) {
   const effectiveMonthCost =
     savedMonthCost?.amount_cents ??
     (group?.session_price_cents || 0) * effectiveMonthSessionCount
-  const monthlyBalances = buildMonthlyBalances({
+  const monthlyReport = buildMonthlyBalances({
     month: paymentMonth,
     sessions,
     players,
     payments: monthlyPayments,
     costCents: effectiveMonthCost,
     paidBy: effectiveMonthPayerId,
+    sessionCount: effectiveMonthSessionCount,
+    today: dateKey(new Date()),
   })
+  const monthlyBalances = monthlyReport.rows
   const confirmedAppearancesThisMonth = monthlyBalances.reduce(
     (total, row) => total + row.games,
     0,
@@ -2846,7 +2849,9 @@ function GroupPage({ groupId, groupToken }) {
                 </section>
 
                 <p className="monthly-presence-note">
-                  Répartition actualisée d’après les présences validées :{' '}
+                  {monthlyReport.finalAmount
+                    ? 'Montant final : toutes les présences validées sont réparties sur le coût du mois.'
+                    : 'Montant en cours : chaque joueur ne doit que ses parties déjà jouées et validées.'}{' '}
                   <strong>
                     {confirmedAppearancesThisMonth} participation
                     {confirmedAppearancesThisMonth > 1 ? 's' : ''}
