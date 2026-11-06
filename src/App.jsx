@@ -333,6 +333,7 @@ function GroupPage({ groupId, groupToken }) {
   const [eventTitle, setEventTitle] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [eventTime, setEventTime] = useState('19:00')
+  const [eventGuestNames, setEventGuestNames] = useState({})
   const [savingEvent, setSavingEvent] = useState(false)
   const [showAllEvents, setShowAllEvents] = useState(false)
   const [showPayments, setShowPayments] = useState(false)
@@ -431,7 +432,9 @@ function GroupPage({ groupId, groupToken }) {
         .order('played_on'),
       supabase
         .from('group_events')
-        .select('*, event_attendance(player_id, status)')
+        .select(
+          '*, event_attendance(player_id, status), event_guests(id, name, status)',
+        )
         .eq('group_id', groupId)
         .order('starts_on')
         .order('starts_at'),
@@ -571,6 +574,7 @@ function GroupPage({ groupId, groupToken }) {
           starts_at: startsAt,
           created_at: new Date().toISOString(),
           event_attendance: [],
+          event_guests: [],
         },
       ].sort(
         (left, right) =>
@@ -623,7 +627,148 @@ function GroupPage({ groupId, groupToken }) {
     else await loadData()
   }
 
-  async function toggleEventAttendance(groupEvent, playerId) {
+  function eventPeople(groupEvent) {
+    const attendance = new Map(
+      (groupEvent.event_attendance || []).map((entry) => [
+        entry.player_id,
+        entry.status || 'present',
+      ]),
+    )
+    return [
+      ...activePlayers.map((player) => ({
+        key: `player-${player.id}`,
+        id: player.id,
+        name: player.name,
+        kind: 'player',
+        status: attendance.get(player.id),
+      })),
+      ...(groupEvent.event_guests || []).map((guest) => ({
+        key: `guest-${guest.id}`,
+        id: guest.id,
+        name: guest.name,
+        kind: 'guest',
+        status: guest.status || undefined,
+      })),
+    ].sort((left, right) => left.name.localeCompare(right.name, 'fr'))
+  }
+
+  async function addEventGuest(event, groupEvent) {
+    event.preventDefault()
+    if (!isAdmin) return
+    const name = (eventGuestNames[groupEvent.id] || '').trim()
+    if (!name) return
+    const normalized = name.toLocaleLowerCase('fr')
+    if (
+      activePlayers.some(
+        (player) => player.name.trim().toLocaleLowerCase('fr') === normalized,
+      ) ||
+      (groupEvent.event_guests || []).some(
+        (guest) => guest.name.trim().toLocaleLowerCase('fr') === normalized,
+      )
+    ) {
+      setError('Ce nom est déjà présent pour cet événement.')
+      return
+    }
+    setError('')
+
+    if (!isConfigured) {
+      const nextEvents = groupEvents.map((item) =>
+        item.id === groupEvent.id
+          ? {
+              ...item,
+              event_guests: [
+                ...(item.event_guests || []),
+                {
+                  id: `event-guest-${crypto.randomUUID()}`,
+                  name,
+                  status: null,
+                },
+              ],
+            }
+          : item,
+      )
+      saveDemoEvents(nextEvents)
+      setEventGuestNames((current) => ({ ...current, [groupEvent.id]: '' }))
+      return
+    }
+
+    const { error: insertError } = await supabase.from('event_guests').insert({
+      event_id: groupEvent.id,
+      name,
+    })
+    if (insertError) {
+      setError(
+        insertError.code === '23505'
+          ? 'Ce nom est déjà présent pour cet événement.'
+          : insertError.message,
+      )
+    } else {
+      setEventGuestNames((current) => ({ ...current, [groupEvent.id]: '' }))
+      await loadData()
+    }
+  }
+
+  async function removeEventGuest(guest) {
+    if (!isAdmin) return
+    if (!window.confirm(`Retirer ${guest.name} de cet événement ?`)) return
+    setError('')
+    if (!isConfigured) {
+      saveDemoEvents(
+        groupEvents.map((item) => ({
+          ...item,
+          event_guests: (item.event_guests || []).filter(
+            (entry) => entry.id !== guest.id,
+          ),
+        })),
+      )
+      return
+    }
+
+    const { error: deleteError } = await supabase
+      .from('event_guests')
+      .delete()
+      .eq('id', guest.id)
+    if (deleteError) setError(deleteError.message)
+    else await loadData()
+  }
+
+  async function toggleEventAttendance(groupEvent, person) {
+    if (person.kind === 'guest') {
+      const nextStatus =
+        person.status === 'present'
+          ? 'absent'
+          : person.status === 'absent'
+            ? null
+            : 'present'
+      setError('')
+      if (!isConfigured) {
+        saveDemoEvents(
+          groupEvents.map((item) =>
+            item.id === groupEvent.id
+              ? {
+                  ...item,
+                  event_guests: (item.event_guests || []).map((guest) =>
+                    guest.id === person.id
+                      ? { ...guest, status: nextStatus }
+                      : guest,
+                  ),
+                }
+              : item,
+          ),
+        )
+        return
+      }
+
+      const { error: updateError } = await supabase
+        .from('event_guests')
+        .update({ status: nextStatus })
+        .eq('id', person.id)
+      if (updateError) setError(updateError.message)
+      else await loadData()
+      return
+    }
+
+    const playerId = person.id
     const current = (groupEvent.event_attendance || []).find(
       (entry) => entry.player_id === playerId,
     )
@@ -1541,20 +1686,14 @@ function GroupPage({ groupId, groupToken }) {
           <div className="celebration-border">
             <div className="celebration-panel">
               {visibleEvents.map((groupEvent) => {
-                const attendance = new Map(
-                  (groupEvent.event_attendance || []).map((entry) => [
-                    entry.player_id,
-                    entry.status || 'present',
-                  ]),
-                )
-                const attendingCount = activePlayers.filter(
-                  (player) => attendance.get(player.id) === 'present',
+                const people = eventPeople(groupEvent)
+                const attendingCount = people.filter(
+                  (person) => person.status === 'present',
                 ).length
-                const absentCount = activePlayers.filter(
-                  (player) => attendance.get(player.id) === 'absent',
+                const absentCount = people.filter(
+                  (person) => person.status === 'absent',
                 ).length
-                const unansweredCount =
-                  activePlayers.length - attendingCount - absentCount
+                const unansweredCount = people.length - attendingCount - absentCount
                 return (
                   <article className="celebration-event" key={groupEvent.id}>
                     <div className="celebration-heading">
@@ -1584,37 +1723,36 @@ function GroupPage({ groupId, groupToken }) {
                       <Clock3 size={17} />
                       {formatClock(groupEvent.starts_at)}
                     </div>
-                    {activePlayers.length > 0 && (
+                    {people.length > 0 && (
                       <div
                         className="event-attendance"
                         aria-label={`Présences pour ${groupEvent.title}`}
                       >
-                        {activePlayers.map((player) => {
-                          const status = attendance.get(player.id)
+                        {people.map((person) => {
                           const label =
-                            status === 'present'
+                            person.status === 'present'
                               ? 'présent'
-                              : status === 'absent'
+                              : person.status === 'absent'
                                 ? 'absent'
                                 : 'sans réponse'
                           return (
                             <button
                               type="button"
-                              className={status || 'unanswered'}
-                              aria-pressed={status === 'present'}
-                              title={`${player.name} : ${label}. Cliquer pour changer.`}
+                              className={person.status || 'unanswered'}
+                              aria-pressed={person.status === 'present'}
+                              title={`${person.name} : ${label}. Cliquer pour changer.`}
                               onClick={() =>
-                                toggleEventAttendance(groupEvent, player.id)
+                                toggleEventAttendance(groupEvent, person)
                               }
-                              key={player.id}
+                              key={person.key}
                             >
-                              {status === 'present' && (
+                              {person.status === 'present' && (
                                 <Check size={14} strokeWidth={3} />
                               )}
-                              {status === 'absent' && (
+                              {person.status === 'absent' && (
                                 <X size={14} strokeWidth={3} />
                               )}
-                              {player.name}
+                              {person.name}
                             </button>
                           )
                         })}
@@ -2428,23 +2566,59 @@ function GroupPage({ groupId, groupToken }) {
                 {upcomingEvents.length > 0 && (
                   <div className="managed-events">
                     {upcomingEvents.map((groupEvent) => (
-                      <div key={groupEvent.id}>
-                        <span>
-                          <strong>{groupEvent.title}</strong>
-                          <small>
-                            {formatDate(groupEvent.starts_on)} ·{' '}
-                            {formatClock(groupEvent.starts_at)}
-                          </small>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeGroupEvent(groupEvent)}
-                          title={`Supprimer ${groupEvent.title}`}
-                          aria-label={`Supprimer ${groupEvent.title}`}
+                      <article key={groupEvent.id}>
+                        <div className="managed-event-row">
+                          <span>
+                            <strong>{groupEvent.title}</strong>
+                            <small>
+                              {formatDate(groupEvent.starts_on)} ·{' '}
+                              {formatClock(groupEvent.starts_at)}
+                            </small>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeGroupEvent(groupEvent)}
+                            title={`Supprimer ${groupEvent.title}`}
+                            aria-label={`Supprimer ${groupEvent.title}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <form
+                          className="event-extra-form"
+                          onSubmit={(event) => addEventGuest(event, groupEvent)}
                         >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                          <input
+                            value={eventGuestNames[groupEvent.id] || ''}
+                            onChange={(event) =>
+                              setEventGuestNames((current) => ({
+                                ...current,
+                                [groupEvent.id]: event.target.value,
+                              }))
+                            }
+                            maxLength={40}
+                            placeholder="Ajouter une personne hors rotation"
+                            aria-label={`Ajouter une personne à ${groupEvent.title}`}
+                          />
+                          <button type="submit">Ajouter</button>
+                        </form>
+                        {(groupEvent.event_guests || []).length > 0 && (
+                          <div className="event-extra-list">
+                            {groupEvent.event_guests.map((guest) => (
+                              <span key={guest.id}>
+                                {guest.name}
+                                <button
+                                  type="button"
+                                  onClick={() => removeEventGuest(guest)}
+                                  aria-label={`Retirer ${guest.name}`}
+                                >
+                                  <X size={13} />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </article>
                     ))}
                   </div>
                 )}
