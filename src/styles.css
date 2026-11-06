@@ -1105,6 +1105,152 @@ h1 em {
   opacity: 0.45;
 }
 
+.session-payment {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #e6e7e0;
+}
+
+.featured .session-payment {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.session-payment-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.session-payment-toggle span {
+  flex: 1;
+}
+
+.session-payment-toggle svg:last-child {
+  transition: transform 0.2s ease;
+}
+
+.session-payment-toggle svg:last-child.expanded {
+  transform: rotate(90deg);
+}
+
+.featured .session-payment-toggle {
+  color: #bdccc3;
+}
+
+.session-payment-details {
+  display: grid;
+  gap: 12px;
+  margin-top: 13px;
+  padding: 13px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 8px;
+}
+
+.session-price-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 7px;
+}
+
+.session-price-form label,
+.session-payer {
+  display: grid;
+  gap: 5px;
+  color: #536159;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.session-price-form input,
+.session-payer select {
+  min-width: 0;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 8px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #cfd4cc;
+  border-radius: 6px;
+}
+
+.session-price-form button {
+  min-height: 36px;
+  padding: 0 9px;
+  color: white;
+  background: var(--green);
+  border: 0;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.payment-share-list {
+  display: grid;
+  gap: 6px;
+}
+
+.payment-share-list > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 7px;
+  border: 1px solid #e1e3dc;
+  border-radius: 7px;
+}
+
+.payment-share-list > div.paid {
+  color: #146338;
+  background: #d8f3e2;
+  border-color: #9fd6b2;
+}
+
+.payment-share-list span {
+  display: grid;
+  gap: 1px;
+}
+
+.payment-share-list small {
+  color: var(--muted);
+}
+
+.payment-share-list em {
+  margin-left: auto;
+  color: #146338;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.payment-share-list button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 6px 8px;
+  color: var(--green);
+  background: white;
+  border: 1px solid #cfd4cc;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.payment-share-list button.paid {
+  color: #146338;
+  border-color: #9fd6b2;
+}
+
 .session-footer {
   display: flex;
   align-items: center;
@@ -1642,6 +1788,487 @@ footer {
   background: #fffdf7;
   box-shadow: -18px 0 50px rgba(10, 35, 25, 0.15);
   animation: slide-in 0.25s ease-out;
+}
+
+.payments-modal {
+  width: min(100%, 720px);
+}
+
+.history-modal {
+  width: min(100%, 760px);
+}
+
+.history-list {
+  display: grid;
+  gap: 18px;
+}
+
+.history-card {
+  padding: 20px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.history-card-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 17px;
+}
+
+.history-card-heading span {
+  color: var(--orange);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.history-card-heading h3 {
+  margin: 4px 0 0;
+  color: var(--green);
+  font-family: 'DM Serif Display', serif;
+  font-size: 24px;
+  font-weight: 400;
+  text-transform: capitalize;
+}
+
+.history-card-heading > small {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  color: var(--green);
+  background: var(--green-light);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.history-teams {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.history-teams > div {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-height: 76px;
+  padding: 12px;
+  color: var(--green);
+  background: var(--green-light);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.history-teams > div:last-child {
+  color: color-mix(in srgb, var(--green) 68%, var(--orange));
+  background: color-mix(in srgb, var(--orange) 13%, white);
+}
+
+.history-teams strong {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.history-teams span {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.history-teams > b {
+  align-self: center;
+  color: var(--orange);
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.history-participants {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.history-participants > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px;
+  background: #f7f7f2;
+  border-radius: 7px;
+}
+
+.history-participants label > span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.history-participants i {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--green);
+  background: var(--green-light);
+  border-radius: 50%;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.history-participants small {
+  color: #6d4e9c;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.history-participants select {
+  min-width: 98px;
+  padding: 7px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.history-score-form {
+  display: grid;
+  grid-template-columns: 110px auto 110px 1fr;
+  align-items: end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.history-score-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.history-score-form input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #cbd0c7;
+  border-radius: 6px;
+}
+
+.history-score-form > span {
+  align-self: center;
+  color: var(--muted);
+}
+
+.history-score-form button {
+  min-height: 38px;
+  padding: 0 12px;
+  color: white;
+  background: var(--green);
+  border: 0;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.payment-month-nav {
+  display: grid;
+  grid-template-columns: 42px 1fr 42px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.payment-month-nav strong {
+  color: var(--green);
+  font-family: 'DM Serif Display', serif;
+  font-size: 23px;
+  font-weight: 400;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.payment-month-nav button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: var(--green);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.monthly-cost {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding: 16px;
+  color: var(--green);
+  background: var(--green-light);
+  border-radius: 10px;
+}
+
+.monthly-cost > div {
+  display: grid;
+  gap: 3px;
+}
+
+.monthly-cost span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.monthly-cost strong {
+  font-size: 25px;
+}
+
+.monthly-cost-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px 10px;
+}
+
+.monthly-cost-total b {
+  padding: 5px 8px;
+  color: var(--green);
+  background: rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.monthly-cost small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.monthly-cost form {
+  display: grid;
+  grid-template-columns: 82px 105px minmax(140px, 1fr) auto;
+  align-items: end;
+  gap: 7px;
+}
+
+.monthly-cost label {
+  display: grid;
+  gap: 5px;
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.monthly-cost input,
+.monthly-cost select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.monthly-cost button,
+.monthly-payment-entry form > button {
+  min-height: 38px;
+  padding: 0 11px;
+  color: white;
+  background: var(--green);
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.monthly-presence-note {
+  margin: -8px 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.monthly-presence-note strong {
+  color: var(--green);
+}
+
+.payment-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 28px;
+}
+
+.payment-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.payment-table th,
+.payment-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+
+.payment-table th:first-child {
+  position: sticky;
+  left: 0;
+  color: var(--ink);
+  background: #fffdf7;
+  text-align: left;
+}
+
+.payment-table thead th {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.payment-table td.remaining {
+  color: var(--orange);
+  font-weight: 700;
+}
+
+.payment-table td.settled {
+  color: #18804a;
+  font-weight: 700;
+}
+
+.monthly-payment-entry,
+.unpaid-shares {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.monthly-payment-entry h3,
+.unpaid-shares h3 {
+  margin: 0 0 14px;
+  color: var(--green);
+  font-family: 'DM Serif Display', serif;
+  font-size: 23px;
+  font-weight: 400;
+}
+
+.monthly-payment-entry form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  gap: 7px;
+}
+
+.monthly-payment-entry select,
+.monthly-payment-entry input {
+  min-width: 0;
+  padding: 10px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #cbd0c7;
+  border-radius: 6px;
+}
+
+.monthly-payment-list {
+  display: grid;
+  margin-top: 14px;
+}
+
+.monthly-payment-list > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid #e4e5df;
+}
+
+.monthly-payment-list span {
+  display: grid;
+  gap: 2px;
+}
+
+.monthly-payment-list small {
+  color: var(--muted);
+}
+
+.monthly-payment-list b {
+  margin-left: auto;
+  color: var(--green);
+}
+
+.monthly-payment-list button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: #a23930;
+  background: #f7e4df;
+  border: 0;
+  border-radius: 50%;
+}
+
+.unpaid-shares > div {
+  display: grid;
+  gap: 8px;
+}
+
+.unpaid-shares p:not(.payments-empty) {
+  display: grid;
+  grid-template-columns:
+    minmax(90px, 0.6fr)
+    minmax(150px, 1.2fr)
+    auto
+    auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 11px 12px;
+  background: color-mix(in srgb, var(--orange) 9%, white);
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.unpaid-shares small,
+.payments-empty {
+  color: var(--muted);
+}
+
+.unpaid-shares p > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 9px;
+  color: #146338;
+  background: #d8f3e2;
+  border: 1px solid #9fd6b2;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.payments-empty {
+  margin: 0;
+  font-size: 13px;
 }
 
 .modal-header {
@@ -2213,6 +2840,80 @@ footer {
   .availability-form,
   .guest-form {
     flex-direction: column;
+  }
+
+  .session-price-form {
+    grid-template-columns: 1fr;
+  }
+
+  .session-price-form input,
+  .session-price-form button,
+  .session-payer select,
+  .payment-share-list button {
+    min-height: 40px;
+  }
+
+  .monthly-cost {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .monthly-cost form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .monthly-cost input,
+  .monthly-cost select {
+    width: 100%;
+  }
+
+  .monthly-cost label:nth-child(3),
+  .monthly-cost button {
+    grid-column: 1 / -1;
+  }
+
+  .monthly-payment-entry form {
+    grid-template-columns: 1fr;
+  }
+
+  .history-card {
+    padding: 16px 12px;
+  }
+
+  .history-teams {
+    grid-template-columns: 1fr;
+  }
+
+  .history-teams > b {
+    justify-self: center;
+  }
+
+  .history-participants {
+    grid-template-columns: 1fr;
+  }
+
+  .history-participants select {
+    min-height: 40px;
+  }
+
+  .history-score-form {
+    grid-template-columns: 1fr auto 1fr;
+  }
+
+  .history-score-form button {
+    grid-column: 1 / -1;
+    min-height: 44px;
+  }
+
+  .monthly-payment-entry select,
+  .monthly-payment-entry input,
+  .monthly-payment-entry form > button {
+    min-height: 44px;
+  }
+
+  .unpaid-shares p:not(.payments-empty) {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .availability-form select,

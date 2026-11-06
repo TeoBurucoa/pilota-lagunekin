@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
+  Euro,
+  History,
   PartyPopper,
   Plus,
   RotateCw,
@@ -11,6 +15,7 @@ import {
   Trash2,
   UserPlus,
   Users,
+  WalletCards,
   X,
 } from 'lucide-react'
 import {
@@ -22,6 +27,15 @@ import {
 } from './supabase'
 import Welcome, { DAYS, FREQUENCIES, SPORTS, useSportFavicon } from './Welcome'
 import Admin from './Admin'
+import {
+  buildMonthlyBalances,
+  currentMonthKey,
+  eurosToCents,
+  formatEuros,
+  formatMonth,
+  getSessionPaymentSummary,
+  moveMonth,
+} from './payments'
 
 const dateKey = (date) => {
   const year = date.getFullYear()
@@ -299,6 +313,8 @@ function GroupPage({ groupId, groupToken }) {
   const [players, setPlayers] = useState([])
   const [sessions, setSessions] = useState([])
   const [groupEvents, setGroupEvents] = useState([])
+  const [monthCosts, setMonthCosts] = useState([])
+  const [monthlyPayments, setMonthlyPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [savingSlot, setSavingSlot] = useState(false)
@@ -319,6 +335,19 @@ function GroupPage({ groupId, groupToken }) {
   const [eventTime, setEventTime] = useState('19:00')
   const [savingEvent, setSavingEvent] = useState(false)
   const [showAllEvents, setShowAllEvents] = useState(false)
+  const [showPayments, setShowPayments] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [paymentMonth, setPaymentMonth] = useState(currentMonthKey)
+  const [expandedPaymentSession, setExpandedPaymentSession] = useState('')
+  const [sessionPriceDrafts, setSessionPriceDrafts] = useState({})
+  const [monthCostDrafts, setMonthCostDrafts] = useState({})
+  const [monthSessionCountDrafts, setMonthSessionCountDrafts] = useState({})
+  const [monthPayerDrafts, setMonthPayerDrafts] = useState({})
+  const [monthlyPaymentPlayer, setMonthlyPaymentPlayer] = useState('')
+  const [monthlyPaymentAmount, setMonthlyPaymentAmount] = useState('')
+  const [groupPriceDraft, setGroupPriceDraft] = useState(null)
+  const [scoreDrafts, setScoreDrafts] = useState({})
+  const [savingPayment, setSavingPayment] = useState(false)
 
   useEffect(() => {
     if (!isConfigured || !adminToken) return undefined
@@ -368,13 +397,24 @@ function GroupPage({ groupId, groupToken }) {
       } else {
         const savedGroup = JSON.parse(storedGroup)
         setGroup(savedGroup)
+        setPlayers(savedGroup.demo_players || [])
+        setSessions(savedGroup.demo_sessions || [])
         setGroupEvents(savedGroup.group_events || [])
+        setMonthCosts(savedGroup.month_costs || [])
+        setMonthlyPayments(savedGroup.monthly_payments || [])
       }
       setLoading(false)
       return
     }
 
-    const [groupResult, playersResult, sessionsResult, eventsResult] =
+    const [
+      groupResult,
+      playersResult,
+      sessionsResult,
+      eventsResult,
+      monthCostsResult,
+      monthlyPaymentsResult,
+    ] =
       await Promise.all([
       supabase.from('groups').select('*').eq('id', groupId).maybeSingle(),
       supabase
@@ -385,7 +425,7 @@ function GroupPage({ groupId, groupToken }) {
       supabase
         .from('sessions')
         .select(
-          'id, played_on, manual, starts_at, session_players(player_id, locked), session_availability(player_id), session_guests(id, name)',
+          'id, played_on, manual, starts_at, price_cents, paid_by, team_one_score, team_two_score, session_players(player_id, locked, share_paid, team), session_availability(player_id), session_guests(id, name, share_paid, team)',
         )
         .eq('group_id', groupId)
         .order('played_on'),
@@ -395,19 +435,33 @@ function GroupPage({ groupId, groupToken }) {
         .eq('group_id', groupId)
         .order('starts_on')
         .order('starts_at'),
+      supabase
+        .from('month_costs')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('month'),
+      supabase
+        .from('monthly_payments')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at'),
     ])
 
     if (
       groupResult.error ||
       playersResult.error ||
       sessionsResult.error ||
-      eventsResult.error
+      eventsResult.error ||
+      monthCostsResult.error ||
+      monthlyPaymentsResult.error
     ) {
       setError(
         groupResult.error?.message ||
           playersResult.error?.message ||
           sessionsResult.error?.message ||
           eventsResult.error?.message ||
+          monthCostsResult.error?.message ||
+          monthlyPaymentsResult.error?.message ||
           'Impossible de charger le planning.',
       )
     } else if (!groupResult.data) {
@@ -417,6 +471,8 @@ function GroupPage({ groupId, groupToken }) {
       setPlayers(playersResult.data)
       setSessions(sessionsResult.data)
       setGroupEvents(eventsResult.data)
+      setMonthCosts(monthCostsResult.data)
+      setMonthlyPayments(monthlyPaymentsResult.data)
     }
     setLoading(false)
   }
@@ -619,6 +675,295 @@ function GroupPage({ groupId, groupToken }) {
     else await loadData()
   }
 
+  function saveDemoPaymentData({
+    nextSessions = sessions,
+    nextMonthCosts = monthCosts,
+    nextMonthlyPayments = monthlyPayments,
+  } = {}) {
+    setSessions(nextSessions)
+    setMonthCosts(nextMonthCosts)
+    setMonthlyPayments(nextMonthlyPayments)
+    const updatedGroup = {
+      ...group,
+      demo_players: players,
+      demo_sessions: nextSessions,
+      month_costs: nextMonthCosts,
+      monthly_payments: nextMonthlyPayments,
+    }
+    setGroup(updatedGroup)
+    localStorage.setItem(
+      `pilota-group-${groupId}`,
+      JSON.stringify(updatedGroup),
+    )
+  }
+
+  async function updateSessionPayment(sessionId, changes) {
+    setError('')
+    if (!isConfigured) {
+      const nextSessions = sessions.map((session) =>
+        session.id === sessionId ? { ...session, ...changes } : session,
+      )
+      saveDemoPaymentData({ nextSessions })
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('sessions')
+      .update(changes)
+      .eq('id', sessionId)
+    if (updateError) setError(updateError.message)
+    else await loadData()
+  }
+
+  async function saveSessionPrice(event, session) {
+    event.preventDefault()
+    const value =
+      sessionPriceDrafts[session.id] ??
+      String(
+        (session.price_cents ?? group.session_price_cents ?? 0) / 100,
+      )
+    await updateSessionPayment(session.id, {
+      price_cents: eurosToCents(value),
+    })
+  }
+
+  async function toggleSessionShare(session, participant) {
+    const nextPaid = !participant.sharePaid
+    setError('')
+    if (!isConfigured) {
+      const nextSessions = sessions.map((item) => {
+        if (item.id !== session.id) return item
+        if (participant.type === 'guest') {
+          return {
+            ...item,
+            session_guests: (item.session_guests || []).map((guest) =>
+              guest.id === participant.id
+                ? { ...guest, share_paid: nextPaid }
+                : guest,
+            ),
+          }
+        }
+        return {
+          ...item,
+          session_players: (item.session_players || []).map((entry) =>
+            entry.player_id === participant.id
+              ? { ...entry, share_paid: nextPaid }
+              : entry,
+          ),
+        }
+      })
+      saveDemoPaymentData({ nextSessions })
+      return
+    }
+
+    const table =
+      participant.type === 'guest' ? 'session_guests' : 'session_players'
+    let query = supabase.from(table).update({ share_paid: nextPaid })
+    query =
+      participant.type === 'guest'
+        ? query.eq('id', participant.id)
+        : query
+            .eq('session_id', session.id)
+            .eq('player_id', participant.id)
+    const { error: updateError } = await query
+    if (updateError) setError(updateError.message)
+    else await loadData()
+  }
+
+  async function updateHistoryTeam(session, participant, value) {
+    const team = value === '1' || value === '2' ? Number(value) : null
+    const played = value !== ''
+    setError('')
+    if (!isConfigured) {
+      const nextSessions = sessions.map((item) => {
+        if (item.id !== session.id) return item
+        if (participant.type === 'guest') {
+          return {
+            ...item,
+            session_guests: (item.session_guests || []).map((guest) =>
+              guest.id === participant.id ? { ...guest, team } : guest,
+            ),
+          }
+        }
+        return {
+          ...item,
+          session_players: (item.session_players || []).map((entry) =>
+            entry.player_id === participant.id
+              ? { ...entry, team, locked: played }
+              : entry,
+          ),
+        }
+      })
+      saveDemoPaymentData({ nextSessions })
+      return
+    }
+
+    const table =
+      participant.type === 'guest' ? 'session_guests' : 'session_players'
+    let query = supabase
+      .from(table)
+      .update(
+        participant.type === 'guest' ? { team } : { team, locked: played },
+      )
+    query =
+      participant.type === 'guest'
+        ? query.eq('id', participant.id)
+        : query
+            .eq('session_id', session.id)
+            .eq('player_id', participant.id)
+    const { error: updateError } = await query
+    if (updateError) setError(updateError.message)
+    else await loadData()
+  }
+
+  async function saveHistoryScore(event, session) {
+    event.preventDefault()
+    const draft = scoreDrafts[session.id] || {}
+    const firstValue = draft.teamOne ?? session.team_one_score ?? ''
+    const secondValue = draft.teamTwo ?? session.team_two_score ?? ''
+    if (
+      (firstValue === '' && secondValue !== '') ||
+      (firstValue !== '' && secondValue === '')
+    ) {
+      setError('Indiquez le score des deux équipes.')
+      return
+    }
+    const changes = {
+      team_one_score: firstValue === '' ? null : Number(firstValue),
+      team_two_score: secondValue === '' ? null : Number(secondValue),
+    }
+    setError('')
+
+    if (!isConfigured) {
+      const nextSessions = sessions.map((item) =>
+        item.id === session.id ? { ...item, ...changes } : item,
+      )
+      saveDemoPaymentData({ nextSessions })
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('sessions')
+      .update(changes)
+      .eq('id', session.id)
+    if (updateError) setError(updateError.message)
+    else await loadData()
+  }
+
+  async function saveMonthCost(event) {
+    event.preventDefault()
+    if (!isAdmin) return
+    const regularCount = sessions.filter(
+      (session) =>
+        !session.manual &&
+        session.played_on.slice(0, 7) === paymentMonth.slice(0, 7),
+    ).length
+    const savedCost = monthCosts.find((cost) => cost.month === paymentMonth)
+    const sessionCount = Math.max(
+      0,
+      Math.trunc(
+        Number(
+          monthSessionCountDrafts[paymentMonth] ??
+            savedCost?.session_count ??
+            regularCount,
+        ),
+      ),
+    )
+    const defaultCost = (group.session_price_cents || 0) * sessionCount
+    const amountCents = eurosToCents(
+      monthCostDrafts[paymentMonth] ??
+        String((savedCost?.amount_cents ?? defaultCost) / 100),
+    )
+    const paidBy =
+      monthPayerDrafts[paymentMonth] ?? savedCost?.paid_by ?? null
+    setError('')
+
+    if (!isConfigured) {
+      const nextMonthCosts = [
+        ...monthCosts.filter((cost) => cost.month !== paymentMonth),
+        {
+          group_id: groupId,
+          month: paymentMonth,
+          amount_cents: amountCents,
+          session_count: sessionCount,
+          paid_by: paidBy || null,
+        },
+      ]
+      saveDemoPaymentData({ nextMonthCosts })
+      return
+    }
+
+    const { error: upsertError } = await supabase.from('month_costs').upsert({
+      group_id: groupId,
+      month: paymentMonth,
+      amount_cents: amountCents,
+      session_count: sessionCount,
+      paid_by: paidBy || null,
+    })
+    if (upsertError) setError(upsertError.message)
+    else await loadData()
+  }
+
+  async function addMonthlyPayment(event) {
+    event.preventDefault()
+    const amountCents = eurosToCents(monthlyPaymentAmount)
+    if (!monthlyPaymentPlayer || amountCents <= 0) return
+    setSavingPayment(true)
+    setError('')
+    const payment = {
+      group_id: groupId,
+      player_id: monthlyPaymentPlayer,
+      month: paymentMonth,
+      amount_cents: amountCents,
+      created_at: new Date().toISOString(),
+    }
+
+    if (!isConfigured) {
+      saveDemoPaymentData({
+        nextMonthlyPayments: [
+          ...monthlyPayments,
+          { ...payment, id: crypto.randomUUID() },
+        ],
+      })
+      setMonthlyPaymentPlayer('')
+      setMonthlyPaymentAmount('')
+      setSavingPayment(false)
+      return
+    }
+
+    const { error: insertError } = await supabase
+      .from('monthly_payments')
+      .insert(payment)
+    if (insertError) setError(insertError.message)
+    else {
+      setMonthlyPaymentPlayer('')
+      setMonthlyPaymentAmount('')
+      await loadData()
+    }
+    setSavingPayment(false)
+  }
+
+  async function removeMonthlyPayment(payment) {
+    if (!isAdmin) return
+    if (!window.confirm('Supprimer ce paiement ?')) return
+    setError('')
+    if (!isConfigured) {
+      saveDemoPaymentData({
+        nextMonthlyPayments: monthlyPayments.filter(
+          (item) => item.id !== payment.id,
+        ),
+      })
+      return
+    }
+
+    const { error: deleteError } = await supabase
+      .from('monthly_payments')
+      .delete()
+      .eq('id', payment.id)
+    if (deleteError) setError(deleteError.message)
+    else await loadData()
+  }
+
   async function saveGroupSettings(event) {
     event.preventDefault()
     if (!isAdmin) {
@@ -635,6 +980,8 @@ function GroupPage({ groupId, groupToken }) {
       recurring: group.recurring !== false,
       sport: group.sport || 'pelote',
       hero_message: group.hero_message.trim(),
+      payment_mode: group.payment_mode || 'none',
+      session_price_cents: Number(group.session_price_cents || 0),
     }
 
     if (!isConfigured) {
@@ -642,6 +989,7 @@ function GroupPage({ groupId, groupToken }) {
       localStorage.setItem(`pilota-group-${groupId}`, JSON.stringify(updated))
       setGroup(updated)
       setSettingsSaved(true)
+      setGroupPriceDraft(null)
       return
     }
 
@@ -652,6 +1000,7 @@ function GroupPage({ groupId, groupToken }) {
     if (updateError) setError(updateError.message)
     else {
       setSettingsSaved(true)
+      setGroupPriceDraft(null)
       await loadData()
     }
   }
@@ -1006,8 +1355,17 @@ function GroupPage({ groupId, groupToken }) {
     await loadData()
   }
 
+  const isSessionPast = (session) =>
+    new Date(
+      `${session.played_on}T${
+        session.starts_at || group?.meeting_time || '18:00:00'
+      }`,
+    ) < new Date()
+  const pastSessions = sessions
+    .filter(isSessionPast)
+    .sort((left, right) => right.played_on.localeCompare(left.played_on))
   const futureSessions = sessions
-    .filter((session) => session.played_on >= dateKey(new Date()))
+    .filter((session) => !isSessionPast(session))
     .sort((left, right) => left.played_on.localeCompare(right.played_on))
   const upcomingSessions = [
     ...futureSessions.filter((session) => !session.manual).slice(0, 12),
@@ -1028,6 +1386,75 @@ function GroupPage({ groupId, groupToken }) {
   const visibleEvents = showAllEvents
     ? upcomingEvents
     : upcomingEvents.slice(0, 1)
+  const paymentMode = group?.payment_mode || 'none'
+  const paymentsEnabled = paymentMode !== 'none'
+  const usesSessionPayment = (session) =>
+    paymentsEnabled &&
+    (paymentMode === 'per_session' ||
+      (paymentMode === 'monthly' && session.manual))
+  const regularSessionsThisMonth = sessions.filter(
+    (session) =>
+      !session.manual &&
+      session.played_on.slice(0, 7) === paymentMonth.slice(0, 7),
+  )
+  const savedMonthCost = monthCosts.find(
+    (cost) => cost.month === paymentMonth,
+  )
+  const effectiveMonthSessionCount = Math.max(
+    0,
+    Math.trunc(
+      Number(
+        monthSessionCountDrafts[paymentMonth] ??
+          savedMonthCost?.session_count ??
+          regularSessionsThisMonth.length,
+      ),
+    ),
+  )
+  const effectiveMonthPayerId =
+    monthPayerDrafts[paymentMonth] ?? savedMonthCost?.paid_by ?? ''
+  const effectiveMonthPayer = playerMap.get(effectiveMonthPayerId)
+  const effectiveMonthCost =
+    savedMonthCost?.amount_cents ??
+    (group?.session_price_cents || 0) * effectiveMonthSessionCount
+  const monthlyBalances = buildMonthlyBalances({
+    month: paymentMonth,
+    sessions,
+    players,
+    payments: monthlyPayments,
+    costCents: effectiveMonthCost,
+    paidBy: effectiveMonthPayerId,
+  })
+  const confirmedAppearancesThisMonth = monthlyBalances.reduce(
+    (total, row) => total + row.games,
+    0,
+  )
+  const selectedMonthlyPayments = monthlyPayments.filter(
+    (payment) => payment.month === paymentMonth,
+  )
+  const unpaidSessionShares = sessions
+    .filter(
+      (session) =>
+        session.played_on.slice(0, 7) === paymentMonth.slice(0, 7) &&
+        usesSessionPayment(session),
+    )
+    .flatMap((session) => {
+      const summary = getSessionPaymentSummary(
+        session,
+        group?.session_price_cents || 0,
+        playerMap,
+      )
+      if (!summary.payer) return []
+      return summary.participants
+        .filter(
+          (participant) =>
+            !participant.isPaid && participant.amountCents > 0,
+        )
+        .map((participant) => ({
+          ...participant,
+          session,
+          payer: summary.payer,
+        }))
+    })
 
   async function copyGroupLink() {
     await navigator.clipboard.writeText(window.location.href)
@@ -1054,6 +1481,22 @@ function GroupPage({ groupId, groupToken }) {
           <span>{group?.name || 'Pilota Lagunekin'}</span>
         </a>
         <div className="header-actions">
+          <button
+            className="icon-button"
+            onClick={() => setShowHistory(true)}
+          >
+            <History size={18} />
+            <span>Historique</span>
+          </button>
+          {paymentsEnabled && (
+            <button
+              className="icon-button"
+              onClick={() => setShowPayments(true)}
+            >
+              <WalletCards size={18} />
+              <span>Paiements</span>
+            </button>
+          )}
           <button className="icon-button" onClick={copyGroupLink}>
             <Share2 size={18} />
             <span>{copied ? 'Lien copié' : 'Partager'}</span>
@@ -1348,6 +1791,12 @@ function GroupPage({ groupId, groupToken }) {
                 : classicIndex === 0
                   ? 'Cette semaine'
                   : `Semaine ${classicIndex + 1}`
+              const hasSessionPayment = usesSessionPayment(session)
+              const sessionPayment = getSessionPaymentSummary(
+                session,
+                group.session_price_cents || 0,
+                playerMap,
+              )
 
               return (
                 <article
@@ -1583,6 +2032,126 @@ function GroupPage({ groupId, groupToken }) {
                       </div>
                     )}
                   </div>
+                  {hasSessionPayment && (
+                    <div className="session-payment">
+                      <button
+                        type="button"
+                        className="session-payment-toggle"
+                        aria-expanded={expandedPaymentSession === session.id}
+                        onClick={() =>
+                          setExpandedPaymentSession((current) =>
+                            current === session.id ? '' : session.id,
+                          )
+                        }
+                      >
+                        <Euro size={15} />
+                        <span>
+                          {formatEuros(sessionPayment.priceCents)}
+                          {' · '}
+                          {sessionPayment.payer
+                            ? `payé par ${sessionPayment.payer.name}`
+                            : 'personne n’a avancé'}
+                          {' · '}
+                          {sessionPayment.paidCount}/
+                          {sessionPayment.participants.length} parts réglées
+                        </span>
+                        <ChevronRight
+                          size={16}
+                          className={
+                            expandedPaymentSession === session.id
+                              ? 'expanded'
+                              : ''
+                          }
+                        />
+                      </button>
+                      {expandedPaymentSession === session.id && (
+                        <div className="session-payment-details">
+                          <form
+                            className="session-price-form"
+                            onSubmit={(event) =>
+                              saveSessionPrice(event, session)
+                            }
+                          >
+                            <label>
+                              Prix du créneau (€)
+                              <input
+                                required
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={
+                                  sessionPriceDrafts[session.id] ??
+                                  String(sessionPayment.priceCents / 100)
+                                }
+                                onChange={(event) =>
+                                  setSessionPriceDrafts((current) => ({
+                                    ...current,
+                                    [session.id]: event.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                            <button type="submit">Enregistrer</button>
+                          </form>
+                          <label className="session-payer">
+                            Payé par
+                            <select
+                              value={
+                                selectedIds.has(session.paid_by)
+                                  ? session.paid_by
+                                  : ''
+                              }
+                              onChange={(event) =>
+                                updateSessionPayment(session.id, {
+                                  paid_by: event.target.value || null,
+                                })
+                              }
+                            >
+                              <option value="">Personne pour l’instant</option>
+                              {selected.map((player) => (
+                                <option value={player.id} key={player.id}>
+                                  {player.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <div className="payment-share-list">
+                            {sessionPayment.participants.map((participant) => (
+                              <div
+                                className={participant.isPaid ? 'paid' : ''}
+                                key={participant.key}
+                              >
+                                <span>
+                                  <strong>{participant.name}</strong>
+                                  <small>
+                                    {formatEuros(participant.amountCents)}
+                                  </small>
+                                </span>
+                                {participant.isPayer ? (
+                                  <em>Payeur</em>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className={
+                                      participant.sharePaid ? 'paid' : ''
+                                    }
+                                    onClick={() =>
+                                      toggleSessionShare(session, participant)
+                                    }
+                                  >
+                                    <Check size={14} />
+                                    {participant.sharePaid
+                                      ? 'Part réglée'
+                                      : 'J’ai payé ma part'}
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="session-footer">
                     <Clock3 size={15} /> {formatClock(session.starts_at)}
                     <span>{filled}/{maxPlayers} joueurs</span>
@@ -1744,6 +2313,44 @@ function GroupPage({ groupId, groupToken }) {
                   }
                 />
               </label>
+              <label>
+                Paiement
+                <select
+                  value={group.payment_mode || 'none'}
+                  onChange={(event) =>
+                    setGroup((current) => ({
+                      ...current,
+                      payment_mode: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="none">Pas de paiement</option>
+                  <option value="monthly">Au mois</option>
+                  <option value="per_session">Au créneau</option>
+                </select>
+              </label>
+              {(group.payment_mode || 'none') !== 'none' && (
+                <label>
+                  Prix d’un créneau (€)
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={
+                      groupPriceDraft ??
+                      String((group.session_price_cents || 0) / 100)
+                    }
+                    onChange={(event) => {
+                      setGroupPriceDraft(event.target.value)
+                      setGroup((current) => ({
+                        ...current,
+                        session_price_cents: eurosToCents(event.target.value),
+                      }))
+                    }}
+                  />
+                </label>
+              )}
               <button type="submit">
                 {settingsSaved ? 'Modifications enregistrées' : 'Enregistrer'}
               </button>
@@ -1858,6 +2465,498 @@ function GroupPage({ groupId, groupToken }) {
                 validée reste sur son créneau lors des prochains recalculs.
               </p>
             </div>
+          </aside>
+        </div>
+      )}
+
+      {showHistory && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={() => setShowHistory(false)}
+        >
+          <aside
+            className="modal history-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Les parties jouées</p>
+                <h2>Historique</h2>
+              </div>
+              <button
+                className="close-button"
+                onClick={() => setShowHistory(false)}
+                aria-label="Fermer"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            {error && <p className="player-form-error">{error}</p>}
+
+            {pastSessions.length === 0 ? (
+              <p className="payments-empty">
+                Aucune partie passée pour le moment.
+              </p>
+            ) : (
+              <div className="history-list">
+                {pastSessions.map((session) => {
+                  const participants = [
+                    ...(session.session_players || [])
+                      .map((entry) => {
+                        const player = playerMap.get(entry.player_id)
+                        return player
+                          ? {
+                              id: player.id,
+                              type: 'player',
+                              name: player.name,
+                              team: entry.team || null,
+                              locked: Boolean(entry.locked),
+                            }
+                          : null
+                      })
+                      .filter(Boolean),
+                    ...(session.session_guests || []).map((guest) => ({
+                      id: guest.id,
+                      type: 'guest',
+                      name: guest.name,
+                      team: guest.team || null,
+                    })),
+                  ]
+                  const firstTeam = participants.filter(
+                    (participant) => participant.team === 1,
+                  )
+                  const secondTeam = participants.filter(
+                    (participant) => participant.team === 2,
+                  )
+                  const hasScore =
+                    session.team_one_score != null &&
+                    session.team_two_score != null
+                  const scoreDraft = scoreDrafts[session.id] || {}
+
+                  return (
+                    <article className="history-card" key={session.id}>
+                      <div className="history-card-heading">
+                        <div>
+                          <span>
+                            {session.manual
+                              ? 'Créneau ajouté'
+                              : 'Créneau régulier'}
+                          </span>
+                          <h3>{formatDate(session.played_on)}</h3>
+                        </div>
+                        <small>{formatClock(session.starts_at)}</small>
+                      </div>
+
+                      <div className="history-teams">
+                        <div>
+                          <strong>Équipe 1</strong>
+                          <span>
+                            {firstTeam.length
+                              ? firstTeam
+                                  .map((participant) => participant.name)
+                                  .join(', ')
+                              : 'À composer'}
+                          </span>
+                        </div>
+                        <b>
+                          {hasScore
+                            ? `${session.team_one_score} – ${session.team_two_score}`
+                            : 'VS'}
+                        </b>
+                        <div>
+                          <strong>Équipe 2</strong>
+                          <span>
+                            {secondTeam.length
+                              ? secondTeam
+                                  .map((participant) => participant.name)
+                                  .join(', ')
+                              : 'À composer'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="history-participants">
+                        {participants.map((participant) => (
+                          <label
+                            key={`${participant.type}-${participant.id}`}
+                          >
+                            <span>
+                              <i>
+                                {participant.name.slice(0, 1).toUpperCase()}
+                              </i>
+                              {participant.name}
+                              {participant.type === 'guest' && (
+                                <small>Invité</small>
+                              )}
+                            </span>
+                            <select
+                              value={
+                                participant.team ||
+                                (participant.locked ? 'confirmed' : '')
+                              }
+                              onChange={(event) =>
+                                updateHistoryTeam(
+                                  session,
+                                  participant,
+                                  event.target.value,
+                                )
+                              }
+                            >
+                              <option value="">N’a pas joué</option>
+                              {participant.type === 'player' && (
+                                <option value="confirmed">
+                                  A joué — équipe à définir
+                                </option>
+                              )}
+                              <option value="1">Équipe 1</option>
+                              <option value="2">Équipe 2</option>
+                            </select>
+                          </label>
+                        ))}
+                      </div>
+
+                      <form
+                        className="history-score-form"
+                        onSubmit={(event) => saveHistoryScore(event, session)}
+                      >
+                        <label>
+                          Score équipe 1
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={
+                              scoreDraft.teamOne ??
+                              session.team_one_score ??
+                              ''
+                            }
+                            onChange={(event) =>
+                              setScoreDrafts((current) => ({
+                                ...current,
+                                [session.id]: {
+                                  ...current[session.id],
+                                  teamOne: event.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </label>
+                        <span>–</span>
+                        <label>
+                          Score équipe 2
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={
+                              scoreDraft.teamTwo ??
+                              session.team_two_score ??
+                              ''
+                            }
+                            onChange={(event) =>
+                              setScoreDrafts((current) => ({
+                                ...current,
+                                [session.id]: {
+                                  ...current[session.id],
+                                  teamTwo: event.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </label>
+                        <button type="submit">Enregistrer le résultat</button>
+                      </form>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+
+      {showPayments && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={() => setShowPayments(false)}
+        >
+          <aside
+            className="modal payments-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Les comptes du groupe</p>
+                <h2>Paiements</h2>
+              </div>
+              <button
+                className="close-button"
+                onClick={() => setShowPayments(false)}
+                aria-label="Fermer"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <div className="payment-month-nav">
+              <button
+                type="button"
+                onClick={() =>
+                  setPaymentMonth((current) => moveMonth(current, -1))
+                }
+                aria-label="Mois précédent"
+              >
+                <ChevronLeft size={19} />
+              </button>
+              <strong>{formatMonth(paymentMonth)}</strong>
+              <button
+                type="button"
+                onClick={() =>
+                  setPaymentMonth((current) => moveMonth(current, 1))
+                }
+                aria-label="Mois suivant"
+              >
+                <ChevronRight size={19} />
+              </button>
+            </div>
+
+            {error && <p className="player-form-error">{error}</p>}
+
+            {paymentMode === 'monthly' && (
+              <>
+                <section className="monthly-cost">
+                  <div>
+                    <span>Coût du mois</span>
+                    <div className="monthly-cost-total">
+                      <strong>{formatEuros(effectiveMonthCost)}</strong>
+                      <b>
+                        {effectiveMonthPayer
+                          ? `avancé par ${effectiveMonthPayer.name}`
+                          : 'personne n’a encore avancé'}
+                      </b>
+                    </div>
+                    <small>
+                      {effectiveMonthSessionCount} créneau
+                      {effectiveMonthSessionCount > 1 ? 'x' : ''} régulier
+                      {effectiveMonthSessionCount > 1 ? 's' : ''}
+                    </small>
+                    {!savedMonthCost && (
+                      <small>
+                        Montant proposé depuis le prix d’un créneau
+                      </small>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <form onSubmit={saveMonthCost}>
+                      <label>
+                        Créneaux
+                        <input
+                          required
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={effectiveMonthSessionCount}
+                          onChange={(event) =>
+                            setMonthSessionCountDrafts((current) => ({
+                              ...current,
+                              [paymentMonth]: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Montant (€)
+                        <input
+                          required
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={
+                            monthCostDrafts[paymentMonth] ??
+                            String(effectiveMonthCost / 100)
+                          }
+                          onChange={(event) =>
+                            setMonthCostDrafts((current) => ({
+                              ...current,
+                              [paymentMonth]: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Avancé par
+                        <select
+                          value={effectiveMonthPayerId}
+                          onChange={(event) =>
+                            setMonthPayerDrafts((current) => ({
+                              ...current,
+                              [paymentMonth]: event.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">Personne pour l’instant</option>
+                          {activePlayers.map((player) => (
+                            <option value={player.id} key={player.id}>
+                              {player.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="submit">Enregistrer</button>
+                    </form>
+                  )}
+                </section>
+
+                <p className="monthly-presence-note">
+                  Répartition actualisée d’après les présences validées :{' '}
+                  <strong>
+                    {confirmedAppearancesThisMonth} participation
+                    {confirmedAppearancesThisMonth > 1 ? 's' : ''}
+                  </strong>
+                  {effectiveMonthPayer &&
+                    ` · les restes sont à régler à ${effectiveMonthPayer.name}`}
+                </p>
+
+                <div className="payment-table-wrap">
+                  <table className="payment-table">
+                    <thead>
+                      <tr>
+                        <th>Joueur</th>
+                        <th>Présences</th>
+                        <th>Dû</th>
+                        <th>Payé</th>
+                        <th>Reste</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyBalances.map((row) => (
+                        <tr key={row.player.id}>
+                          <th>{row.player.name}</th>
+                          <td>{row.games}</td>
+                          <td>{formatEuros(row.dueCents)}</td>
+                          <td>{formatEuros(row.paidCents)}</td>
+                          <td
+                            className={
+                              row.remainingCents > 0 ? 'remaining' : 'settled'
+                            }
+                          >
+                            {formatEuros(row.remainingCents)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <section className="monthly-payment-entry">
+                  <h3>Ajouter un paiement</h3>
+                  <form onSubmit={addMonthlyPayment}>
+                    <select
+                      required
+                      value={monthlyPaymentPlayer}
+                      onChange={(event) =>
+                        setMonthlyPaymentPlayer(event.target.value)
+                      }
+                    >
+                      <option value="">Choisir un joueur…</option>
+                      {activePlayers.map((player) => (
+                        <option value={player.id} key={player.id}>
+                          {player.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      required
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={monthlyPaymentAmount}
+                      onChange={(event) =>
+                        setMonthlyPaymentAmount(event.target.value)
+                      }
+                      placeholder="Montant (€)"
+                      aria-label="Montant payé en euros"
+                    />
+                    <button type="submit" disabled={savingPayment}>
+                      {savingPayment ? 'Ajout…' : 'Ajouter'}
+                    </button>
+                  </form>
+                  {selectedMonthlyPayments.length > 0 && (
+                    <div className="monthly-payment-list">
+                      {selectedMonthlyPayments.map((payment) => {
+                        const player = playerMap.get(payment.player_id)
+                        return (
+                          <div key={payment.id}>
+                            <span>
+                              <strong>{player?.name || 'Joueur'}</strong>
+                              <small>
+                                {new Intl.DateTimeFormat('fr-FR').format(
+                                  new Date(payment.created_at),
+                                )}
+                              </small>
+                            </span>
+                            <b>{formatEuros(payment.amount_cents)}</b>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeMonthlyPayment(payment)
+                                }
+                                aria-label={`Supprimer le paiement de ${
+                                  player?.name || 'ce joueur'
+                                }`}
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
+
+            <section className="unpaid-shares">
+              <h3>Parts de créneaux non réglées</h3>
+              {unpaidSessionShares.length > 0 ? (
+                <div>
+                  {unpaidSessionShares.map((share) => (
+                    <p key={`${share.session.id}-${share.key}`}>
+                      <strong>{share.name}</strong>
+                      <span>
+                        doit {formatEuros(share.amountCents)} à{' '}
+                        {share.payer.name}
+                      </span>
+                      <small>
+                        Créneau du{' '}
+                        {new Intl.DateTimeFormat('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                        }).format(
+                          new Date(`${share.session.played_on}T12:00:00`),
+                        )}
+                      </small>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleSessionShare(share.session, share)
+                        }
+                      >
+                        <Check size={14} />
+                        Marquer réglé
+                      </button>
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="payments-empty">
+                  Aucune part en attente pour ce mois.
+                </p>
+              )}
+            </section>
           </aside>
         </div>
       )}

@@ -29,6 +29,8 @@ fictifs. Les modifications ne sont alors pas partagées.
    - `supabase/admin-login.sql`
    - `supabase/add-football-and-on-demand.sql`
    - `supabase/add-group-events.sql`
+   - `supabase/add-payments.sql`
+   - `supabase/add-history.sql`
 3. Copier `.env.example` vers `.env`.
 4. Dans les réglages API du projet Supabase, copier l'URL et la clé anonyme
    dans `.env`.
@@ -61,9 +63,10 @@ Si l'ancienne version est déjà installée, exécuter d'abord
 `supabase/add-sport.sql`, `supabase/add-manual-sessions.sql`,
 `supabase/admin-only-group-settings.sql`, `supabase/add-session-guests.sql`,
 `supabase/admin-login.sql`, `supabase/add-football-and-on-demand.sql` et
-`supabase/add-group-events.sql`. Les anciennes données sont conservées dans un
-premier groupe ; la dernière requête de `multi-groups.sql` affiche son chemin
-privé.
+`supabase/add-group-events.sql`, puis `supabase/add-payments.sql`. Les anciennes
+données sont conservées dans un premier groupe. Exécuter enfin
+`supabase/add-history.sql` ; la dernière requête de `multi-groups.sql` affiche
+le chemin privé du premier groupe.
 
 ## Mise en ligne
 
