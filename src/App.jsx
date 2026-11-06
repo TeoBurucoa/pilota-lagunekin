@@ -816,6 +816,31 @@ function GroupPage({ groupId, groupToken }) {
     else await loadData()
   }
 
+  async function removePastSession(session) {
+    if (!isAdmin) return
+    if (
+      !window.confirm(
+        `Supprimer la partie du ${formatDate(session.played_on)} ? Elle sera retirée de l’historique et des comptes.`,
+      )
+    ) {
+      return
+    }
+    setError('')
+
+    if (!isConfigured) {
+      saveDemoPaymentData({
+        nextSessions: sessions.filter((item) => item.id !== session.id),
+      })
+      return
+    }
+
+    const { error: deleteError } = await supabase.rpc('delete_past_session', {
+      p_session_id: session.id,
+    })
+    if (deleteError) setError(deleteError.message)
+    else await loadData()
+  }
+
   async function saveHistoryScore(event, session) {
     event.preventDefault()
     const draft = scoreDrafts[session.id] || {}
@@ -2545,7 +2570,19 @@ function GroupPage({ groupId, groupToken }) {
                           </span>
                           <h3>{formatDate(session.played_on)}</h3>
                         </div>
-                        <small>{formatClock(session.starts_at)}</small>
+                        <div className="history-card-actions">
+                          <small>{formatClock(session.starts_at)}</small>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => removePastSession(session)}
+                              aria-label={`Supprimer la partie du ${formatDate(session.played_on)}`}
+                            >
+                              <Trash2 size={15} />
+                              Supprimer
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="history-teams">

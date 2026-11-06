@@ -175,14 +175,10 @@ create policy "Admin can remove monthly payments"
   on public.monthly_payments for delete to anon, authenticated
   using (group_id = request_group_id() and request_is_admin());
 
-revoke update on public.sessions from anon, authenticated;
 grant update (price_cents, paid_by) on public.sessions
   to anon, authenticated;
-
-revoke update on public.session_players from anon, authenticated;
 grant update (locked, share_paid) on public.session_players
   to anon, authenticated;
-
 grant update (share_paid) on public.session_guests
   to anon, authenticated;
 
