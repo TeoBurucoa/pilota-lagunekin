@@ -159,6 +159,177 @@ button {
   gap: 8px;
 }
 
+.celebration-wrap {
+  max-width: 1180px;
+  margin: 28px auto 0;
+  padding: 0 30px;
+}
+
+.celebration-border {
+  position: relative;
+  overflow: hidden;
+  padding: 2px;
+  border-radius: 18px;
+  box-shadow:
+    0 14px 40px color-mix(in srgb, var(--orange) 18%, transparent),
+    0 0 22px color-mix(in srgb, var(--green) 12%, transparent);
+}
+
+.celebration-border::before {
+  content: '';
+  position: absolute;
+  inset: -180%;
+  background: conic-gradient(
+    var(--green),
+    var(--orange),
+    #f3c95d,
+    #fff3a6,
+    var(--orange),
+    var(--green)
+  );
+  animation: festive-border 9s linear infinite;
+}
+
+.celebration-panel {
+  position: relative;
+  padding: 24px 26px;
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      color-mix(in srgb, var(--orange) 13%, transparent),
+      transparent 38%
+    ),
+    var(--surface);
+  border-radius: 16px;
+}
+
+.celebration-event + .celebration-event {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.celebration-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.celebration-heading h2 {
+  margin: 0;
+  color: var(--green);
+  font-size: 27px;
+  line-height: 1.1;
+}
+
+.celebration-heading .eyebrow {
+  margin-bottom: 5px;
+}
+
+.celebration-counts {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.celebration-counts strong {
+  padding: 7px 11px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 82%, var(--line));
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.celebration-counts strong.present {
+  color: #146338;
+  background: #d8f3e2;
+}
+
+.celebration-counts strong.absent {
+  color: #8d342c;
+  background: #f8ddd8;
+}
+
+.celebration-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--green);
+  background: #f7d873;
+  border-radius: 50%;
+  transform: rotate(-8deg);
+}
+
+.celebration-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 13px 0 16px 57px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.celebration-date span {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--line);
+}
+
+.event-attendance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-left: 57px;
+}
+
+.event-attendance button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 6px 10px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 88%, var(--green-light));
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.event-attendance button.present {
+  color: #146338;
+  background: #d8f3e2;
+  border-color: #9fd6b2;
+}
+
+.event-attendance button.absent {
+  color: #8d342c;
+  background: #f8ddd8;
+  border-color: #e7b2aa;
+}
+
+.event-attendance button.unanswered {
+  border-style: dashed;
+}
+
+.more-events {
+  margin: 20px 0 0 57px;
+  padding: 0;
+  color: var(--green);
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .hero {
   position: relative;
   max-width: 1180px;
@@ -1556,6 +1727,100 @@ footer {
   font-weight: 700;
 }
 
+.event-settings {
+  margin-bottom: 28px;
+  padding-bottom: 26px;
+  border-bottom: 1px solid var(--line);
+}
+
+.event-form {
+  display: grid;
+  gap: 12px;
+}
+
+.event-form label {
+  display: grid;
+  gap: 6px;
+  color: #536159;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.event-form input {
+  min-width: 0;
+  width: 100%;
+  padding: 10px 11px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #cbd0c7;
+  border-radius: 7px;
+  outline: none;
+}
+
+.event-form > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  color: white;
+  background: var(--orange);
+  border: 0;
+  border-radius: 7px;
+  font-weight: 700;
+}
+
+.event-form > button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.managed-events {
+  display: grid;
+  margin-top: 16px;
+}
+
+.managed-events > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 2px;
+  border-bottom: 1px solid #e4e5df;
+}
+
+.managed-events span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.managed-events strong {
+  overflow-wrap: anywhere;
+}
+
+.managed-events small {
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.managed-events button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  color: #a23930;
+  background: #f7e4df;
+  border: 0;
+  border-radius: 50%;
+}
+
+.managed-events button:hover {
+  color: white;
+  background: #a23930;
+}
+
 .modal-section-title {
   margin-bottom: 11px;
   color: var(--green);
@@ -1684,9 +1949,16 @@ footer {
   }
 }
 
+@keyframes festive-border {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .spin,
-  .theme-football .ball-surface {
+  .theme-football .ball-surface,
+  .celebration-border::before {
     animation: none;
   }
 }
@@ -1800,6 +2072,42 @@ footer {
     min-height: 0;
     gap: 20px;
     padding: 28px 16px 32px;
+  }
+
+  .celebration-wrap {
+    margin-top: 18px;
+    padding: 0 16px;
+  }
+
+  .celebration-panel {
+    padding: 20px 16px;
+  }
+
+  .celebration-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .celebration-heading h2 {
+    font-size: 23px;
+  }
+
+  .celebration-counts {
+    margin-left: 57px;
+  }
+
+  .celebration-date,
+  .event-attendance,
+  .more-events {
+    margin-left: 0;
+  }
+
+  .celebration-date {
+    flex-wrap: wrap;
+  }
+
+  .event-attendance button {
+    min-height: 40px;
   }
 
   h1 {

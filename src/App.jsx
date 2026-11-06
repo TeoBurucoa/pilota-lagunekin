@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Check,
   Clock3,
+  PartyPopper,
   Plus,
   RotateCw,
   Settings,
@@ -289,7 +290,7 @@ function readVisitAdminToken() {
 
 function GroupPage({ groupId, groupToken }) {
   const [adminToken] = useState(readVisitAdminToken)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(!isConfigured)
   const supabase = useMemo(
     () => createGroupClient(groupToken, isAdmin ? adminToken : ''),
     [groupToken, isAdmin, adminToken],
@@ -297,6 +298,7 @@ function GroupPage({ groupId, groupToken }) {
   const [group, setGroup] = useState(null)
   const [players, setPlayers] = useState([])
   const [sessions, setSessions] = useState([])
+  const [groupEvents, setGroupEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [savingSlot, setSavingSlot] = useState(false)
@@ -312,6 +314,11 @@ function GroupPage({ groupId, groupToken }) {
   const [guestNames, setGuestNames] = useState({})
   const [slotMenuId, setSlotMenuId] = useState('')
   const [slotPick, setSlotPick] = useState('')
+  const [eventTitle, setEventTitle] = useState('')
+  const [eventDate, setEventDate] = useState('')
+  const [eventTime, setEventTime] = useState('19:00')
+  const [savingEvent, setSavingEvent] = useState(false)
+  const [showAllEvents, setShowAllEvents] = useState(false)
 
   useEffect(() => {
     if (!isConfigured || !adminToken) return undefined
@@ -359,13 +366,16 @@ function GroupPage({ groupId, groupToken }) {
       if (!storedGroup) {
         setError('Ce groupe est introuvable ou le lien est incomplet.')
       } else {
-        setGroup(JSON.parse(storedGroup))
+        const savedGroup = JSON.parse(storedGroup)
+        setGroup(savedGroup)
+        setGroupEvents(savedGroup.group_events || [])
       }
       setLoading(false)
       return
     }
 
-    const [groupResult, playersResult, sessionsResult] = await Promise.all([
+    const [groupResult, playersResult, sessionsResult, eventsResult] =
+      await Promise.all([
       supabase.from('groups').select('*').eq('id', groupId).maybeSingle(),
       supabase
         .from('players')
@@ -379,13 +389,25 @@ function GroupPage({ groupId, groupToken }) {
         )
         .eq('group_id', groupId)
         .order('played_on'),
+      supabase
+        .from('group_events')
+        .select('*, event_attendance(player_id, status)')
+        .eq('group_id', groupId)
+        .order('starts_on')
+        .order('starts_at'),
     ])
 
-    if (groupResult.error || playersResult.error || sessionsResult.error) {
+    if (
+      groupResult.error ||
+      playersResult.error ||
+      sessionsResult.error ||
+      eventsResult.error
+    ) {
       setError(
         groupResult.error?.message ||
           playersResult.error?.message ||
           sessionsResult.error?.message ||
+          eventsResult.error?.message ||
           'Impossible de charger le planning.',
       )
     } else if (!groupResult.data) {
@@ -394,6 +416,7 @@ function GroupPage({ groupId, groupToken }) {
       setGroup(groupResult.data)
       setPlayers(playersResult.data)
       setSessions(sessionsResult.data)
+      setGroupEvents(eventsResult.data)
     }
     setLoading(false)
   }
@@ -458,6 +481,142 @@ function GroupPage({ groupId, groupToken }) {
       setNewName('')
       await loadData()
     }
+  }
+
+  function saveDemoEvents(nextEvents) {
+    setGroupEvents(nextEvents)
+    const updatedGroup = { ...group, group_events: nextEvents }
+    setGroup(updatedGroup)
+    localStorage.setItem(
+      `pilota-group-${groupId}`,
+      JSON.stringify(updatedGroup),
+    )
+  }
+
+  async function createGroupEvent(event) {
+    event.preventDefault()
+    const title = eventTitle.trim()
+    if (!isAdmin || !title || !eventDate || !eventTime) return
+    if (eventDate < dateKey(new Date())) {
+      setError('La date de l’événement ne peut pas être passée.')
+      return
+    }
+
+    setError('')
+    const startsAt = eventTime.length === 5 ? `${eventTime}:00` : eventTime
+    if (!isConfigured) {
+      const nextEvents = [
+        ...groupEvents,
+        {
+          id: `event-${crypto.randomUUID()}`,
+          group_id: groupId,
+          title,
+          starts_on: eventDate,
+          starts_at: startsAt,
+          created_at: new Date().toISOString(),
+          event_attendance: [],
+        },
+      ].sort(
+        (left, right) =>
+          left.starts_on.localeCompare(right.starts_on) ||
+          left.starts_at.localeCompare(right.starts_at),
+      )
+      saveDemoEvents(nextEvents)
+      setEventTitle('')
+      setEventDate('')
+      setEventTime('19:00')
+      return
+    }
+
+    setSavingEvent(true)
+    const { error: insertError } = await supabase.from('group_events').insert({
+      group_id: groupId,
+      title,
+      starts_on: eventDate,
+      starts_at: startsAt,
+    })
+    if (insertError) setError(insertError.message)
+    else {
+      setEventTitle('')
+      setEventDate('')
+      setEventTime('19:00')
+      await loadData()
+    }
+    setSavingEvent(false)
+  }
+
+  async function removeGroupEvent(groupEvent) {
+    if (!isAdmin) return
+    if (!window.confirm(`Supprimer l’événement « ${groupEvent.title} » ?`)) {
+      return
+    }
+    setError('')
+
+    if (!isConfigured) {
+      saveDemoEvents(
+        groupEvents.filter((item) => item.id !== groupEvent.id),
+      )
+      return
+    }
+
+    const { error: deleteError } = await supabase
+      .from('group_events')
+      .delete()
+      .eq('id', groupEvent.id)
+    if (deleteError) setError(deleteError.message)
+    else await loadData()
+  }
+
+  async function toggleEventAttendance(groupEvent, playerId) {
+    const current = (groupEvent.event_attendance || []).find(
+      (entry) => entry.player_id === playerId,
+    )
+    const nextStatus =
+      current?.status === 'present'
+        ? 'absent'
+        : current?.status === 'absent'
+          ? null
+          : 'present'
+    setError('')
+
+    if (!isConfigured) {
+      const nextEvents = groupEvents.map((item) => {
+        if (item.id !== groupEvent.id) return item
+        const attendance = item.event_attendance || []
+        return {
+          ...item,
+          event_attendance: nextStatus
+            ? [
+                ...attendance.filter((entry) => entry.player_id !== playerId),
+                { player_id: playerId, status: nextStatus },
+              ]
+            : attendance.filter((entry) => entry.player_id !== playerId),
+        }
+      })
+      saveDemoEvents(nextEvents)
+      return
+    }
+
+    const query = !current
+      ? supabase.from('event_attendance').insert({
+          event_id: groupEvent.id,
+          player_id: playerId,
+          status: nextStatus,
+        })
+      : nextStatus
+        ? supabase
+            .from('event_attendance')
+            .update({ status: nextStatus })
+            .eq('event_id', groupEvent.id)
+            .eq('player_id', playerId)
+        : supabase
+            .from('event_attendance')
+            .delete()
+            .eq('event_id', groupEvent.id)
+            .eq('player_id', playerId)
+    const { error: attendanceError } = await query
+    if (attendanceError) setError(attendanceError.message)
+    else await loadData()
   }
 
   async function saveGroupSettings(event) {
@@ -859,6 +1018,16 @@ function GroupPage({ groupId, groupToken }) {
   const formatClock = (value) =>
     (value || group?.meeting_time || '18:00:00').slice(0, 5).replace(':', 'h')
   const canRecalculate = isAdmin && hasRecurringSchedule
+  const upcomingEvents = groupEvents
+    .filter((groupEvent) => groupEvent.starts_on >= dateKey(new Date()))
+    .sort(
+      (left, right) =>
+        left.starts_on.localeCompare(right.starts_on) ||
+        left.starts_at.localeCompare(right.starts_at),
+    )
+  const visibleEvents = showAllEvents
+    ? upcomingEvents
+    : upcomingEvents.slice(0, 1)
 
   async function copyGroupLink() {
     await navigator.clipboard.writeText(window.location.href)
@@ -895,6 +1064,113 @@ function GroupPage({ groupId, groupToken }) {
           </button>
         </div>
       </header>
+
+      {upcomingEvents.length > 0 && (
+        <section className="celebration-wrap">
+          <div className="celebration-border">
+            <div className="celebration-panel">
+              {visibleEvents.map((groupEvent) => {
+                const attendance = new Map(
+                  (groupEvent.event_attendance || []).map((entry) => [
+                    entry.player_id,
+                    entry.status || 'present',
+                  ]),
+                )
+                const attendingCount = activePlayers.filter(
+                  (player) => attendance.get(player.id) === 'present',
+                ).length
+                const absentCount = activePlayers.filter(
+                  (player) => attendance.get(player.id) === 'absent',
+                ).length
+                const unansweredCount =
+                  activePlayers.length - attendingCount - absentCount
+                return (
+                  <article className="celebration-event" key={groupEvent.id}>
+                    <div className="celebration-heading">
+                      <span className="celebration-icon">
+                        <PartyPopper size={22} />
+                      </span>
+                      <div>
+                        <p className="eyebrow">Événement du groupe</p>
+                        <h2>{groupEvent.title}</h2>
+                      </div>
+                      <div className="celebration-counts">
+                        <strong className="present">
+                          {attendingCount} présent{attendingCount > 1 ? 's' : ''}
+                        </strong>
+                        <strong className="absent">
+                          {absentCount} absent{absentCount > 1 ? 's' : ''}
+                        </strong>
+                        <strong>
+                          {unansweredCount} sans réponse
+                        </strong>
+                      </div>
+                    </div>
+                    <div className="celebration-date">
+                      <CalendarDays size={17} />
+                      {formatDate(groupEvent.starts_on)}
+                      <span />
+                      <Clock3 size={17} />
+                      {formatClock(groupEvent.starts_at)}
+                    </div>
+                    {activePlayers.length > 0 && (
+                      <div
+                        className="event-attendance"
+                        aria-label={`Présences pour ${groupEvent.title}`}
+                      >
+                        {activePlayers.map((player) => {
+                          const status = attendance.get(player.id)
+                          const label =
+                            status === 'present'
+                              ? 'présent'
+                              : status === 'absent'
+                                ? 'absent'
+                                : 'sans réponse'
+                          return (
+                            <button
+                              type="button"
+                              className={status || 'unanswered'}
+                              aria-pressed={status === 'present'}
+                              title={`${player.name} : ${label}. Cliquer pour changer.`}
+                              onClick={() =>
+                                toggleEventAttendance(groupEvent, player.id)
+                              }
+                              key={player.id}
+                            >
+                              {status === 'present' && (
+                                <Check size={14} strokeWidth={3} />
+                              )}
+                              {status === 'absent' && (
+                                <X size={14} strokeWidth={3} />
+                              )}
+                              {player.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
+              {upcomingEvents.length > 1 && (
+                <button
+                  type="button"
+                  className="more-events"
+                  onClick={() => setShowAllEvents((current) => !current)}
+                >
+                  {showAllEvents
+                    ? 'Masquer les autres événements'
+                    : `+ ${upcomingEvents.length - 1} autre${
+                        upcomingEvents.length > 2 ? 's' : ''
+                      } événement${
+                        upcomingEvents.length > 2 ? 's' : ''
+                      }`}
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="hero">
         <div className="hero-copy">
@@ -1473,6 +1749,72 @@ function GroupPage({ groupId, groupToken }) {
               </button>
               </fieldset>
             </form>
+
+            {isAdmin && (
+              <section className="event-settings">
+                <div className="modal-section-title">Événements</div>
+                <form className="event-form" onSubmit={createGroupEvent}>
+                  <label>
+                    Titre
+                    <input
+                      required
+                      maxLength={60}
+                      value={eventTitle}
+                      onChange={(event) => setEventTitle(event.target.value)}
+                      placeholder="Repas de fin de saison"
+                    />
+                  </label>
+                  <div className="form-row">
+                    <label>
+                      Date
+                      <input
+                        required
+                        type="date"
+                        min={dateKey(new Date())}
+                        value={eventDate}
+                        onChange={(event) => setEventDate(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Heure
+                      <input
+                        required
+                        type="time"
+                        value={eventTime}
+                        onChange={(event) => setEventTime(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <button type="submit" disabled={savingEvent}>
+                    <PartyPopper size={17} />
+                    {savingEvent ? 'Création…' : 'Créer l’événement'}
+                  </button>
+                </form>
+                {upcomingEvents.length > 0 && (
+                  <div className="managed-events">
+                    {upcomingEvents.map((groupEvent) => (
+                      <div key={groupEvent.id}>
+                        <span>
+                          <strong>{groupEvent.title}</strong>
+                          <small>
+                            {formatDate(groupEvent.starts_on)} ·{' '}
+                            {formatClock(groupEvent.starts_at)}
+                          </small>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeGroupEvent(groupEvent)}
+                          title={`Supprimer ${groupEvent.title}`}
+                          aria-label={`Supprimer ${groupEvent.title}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
 
             <div className="modal-section-title">Joueurs du groupe</div>
             <form className="add-player" onSubmit={addPlayer}>
