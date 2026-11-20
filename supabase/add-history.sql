@@ -65,7 +65,11 @@ begin
         played_on < current_date
         or (
           played_on = current_date
-          and coalesce(starts_at, '23:59:59'::time) <= localtime
+          and coalesce(
+            starts_at,
+            (select meeting_time from public.groups where id = v_group_id),
+            '18:00'::time
+          ) <= localtime
         )
       )
   ) then

@@ -348,6 +348,7 @@ function GroupPage({ groupId, groupToken }) {
   const [monthlyPaymentAmount, setMonthlyPaymentAmount] = useState('')
   const [groupPriceDraft, setGroupPriceDraft] = useState(null)
   const [scoreDrafts, setScoreDrafts] = useState({})
+  const [historyPlayerChoices, setHistoryPlayerChoices] = useState({})
   const [savingPayment, setSavingPayment] = useState(false)
 
   useEffect(() => {
@@ -959,6 +960,48 @@ function GroupPage({ groupId, groupToken }) {
     const { error: updateError } = await query
     if (updateError) setError(updateError.message)
     else await loadData()
+  }
+
+  async function addHistoryPlayer(session) {
+    const playerId = historyPlayerChoices[session.id]
+    if (!playerId) return
+    const filled =
+      (session.session_players || []).length +
+      (session.session_guests || []).length
+    if (filled >= maxPlayers) {
+      setError(`Cette partie compte déjà ${maxPlayers} joueurs.`)
+      return
+    }
+    if (
+      (session.session_players || []).some(
+        (entry) => entry.player_id === playerId,
+      )
+    ) {
+      setError('Ce joueur est déjà sur cette partie.')
+      return
+    }
+    setError('')
+
+    if (!isConfigured) {
+      updateDemoSession(session.id, (item) => ({
+        ...item,
+        session_players: [
+          ...(item.session_players || []),
+          { player_id: playerId, locked: false, team: null },
+        ],
+      }))
+      setHistoryPlayerChoices((current) => ({ ...current, [session.id]: '' }))
+      return
+    }
+
+    const { error: insertError } = await supabase
+      .from('session_players')
+      .insert({ session_id: session.id, player_id: playerId })
+    if (insertError) setError(insertError.message)
+    else {
+      setHistoryPlayerChoices((current) => ({ ...current, [session.id]: '' }))
+      await loadData()
+    }
   }
 
   async function removePastSession(session) {
@@ -2735,6 +2778,15 @@ function GroupPage({ groupId, groupToken }) {
                     session.team_one_score != null &&
                     session.team_two_score != null
                   const scoreDraft = scoreDrafts[session.id] || {}
+                  const participantIds = new Set(
+                    participants
+                      .filter((participant) => participant.type === 'player')
+                      .map((participant) => participant.id),
+                  )
+                  const missingPlayers = activePlayers.filter(
+                    (player) => !participantIds.has(player.id),
+                  )
+                  const filled = participants.length
 
                   return (
                     <article className="history-card" key={session.id}>
@@ -2790,6 +2842,13 @@ function GroupPage({ groupId, groupToken }) {
                         </div>
                       </div>
 
+                      {participants.length === 0 && (
+                        <p className="payments-empty">
+                          Personne n’était inscrit. Ajoutez les joueurs qui ont
+                          joué pour composer les équipes.
+                        </p>
+                      )}
+
                       <div className="history-participants">
                         {participants.map((participant) => (
                           <label
@@ -2826,9 +2885,57 @@ function GroupPage({ groupId, groupToken }) {
                               <option value="1">Équipe 1</option>
                               <option value="2">Équipe 2</option>
                             </select>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                className="history-remove-player"
+                                onClick={() =>
+                                  participant.type === 'guest'
+                                    ? removeGuest(session.id, participant)
+                                    : removeSelectedPlayer(session.id, participant)
+                                }
+                                aria-label={`Retirer ${participant.name} de cette partie`}
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
                           </label>
                         ))}
                       </div>
+
+                      {filled < maxPlayers && missingPlayers.length > 0 && (
+                        <form
+                          className="history-add-player"
+                          onSubmit={(event) => {
+                            event.preventDefault()
+                            addHistoryPlayer(session)
+                          }}
+                        >
+                          <select
+                            value={historyPlayerChoices[session.id] || ''}
+                            onChange={(event) =>
+                              setHistoryPlayerChoices((current) => ({
+                                ...current,
+                                [session.id]: event.target.value,
+                              }))
+                            }
+                            aria-label="Joueur à ajouter à cette partie passée"
+                          >
+                            <option value="">Ajouter un joueur…</option>
+                            {missingPlayers.map((player) => (
+                              <option value={player.id} key={player.id}>
+                                {player.name}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="submit"
+                            disabled={!historyPlayerChoices[session.id]}
+                          >
+                            Ajouter
+                          </button>
+                        </form>
+                      )}
 
                       <form
                         className="history-score-form"

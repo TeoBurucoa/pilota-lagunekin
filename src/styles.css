@@ -1974,6 +1974,58 @@ footer {
   font-size: 11px;
 }
 
+.history-add-player {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.history-add-player select,
+.history-add-player button {
+  min-height: 38px;
+}
+
+.history-add-player select {
+  min-width: 0;
+  padding: 8px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #cbd0c7;
+  border-radius: 6px;
+}
+
+.history-add-player button {
+  padding: 0 12px;
+  color: white;
+  background: var(--green);
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.history-add-player button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.history-participants > label {
+  position: relative;
+}
+
+.history-remove-player {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: #a23930;
+  background: #f7e4df;
+  border: 0;
+  border-radius: 50%;
+}
+
 .history-score-form {
   display: grid;
   grid-template-columns: 110px auto 110px 1fr;
@@ -3024,6 +3076,16 @@ footer {
   .history-score-form button {
     grid-column: 1 / -1;
     min-height: 44px;
+  }
+
+  .history-add-player select,
+  .history-add-player button,
+  .history-remove-player {
+    min-height: 44px;
+  }
+
+  .history-remove-player {
+    width: 44px;
   }
 
   .monthly-payment-entry select,
